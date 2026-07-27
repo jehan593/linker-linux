@@ -45,7 +45,7 @@ No test suite (matches the Windows app's own state). No CI.
   `https://inbox.notesnook.com/` (`source: "linker-linux"`).
 - `theme.c/h` — Nord dark/light palette tables, generates the whole app's GTK3 CSS as one
   stylesheet string, OS dark/light detection (xdg-desktop-portal D-Bus, GSettings fallback) with
-  live watching. **See "Known issue" below before touching this file.**
+  live watching. **See "Known GTK3 gotchas" below before touching this file.**
 - `browsers.c/h` — `.desktop` file enumeration (`Categories` contains `WebBrowser`) + merge with
   saved prefs + order synthesis/materialization; 5-minute on-disk cache for the chooser's fast path.
 - `launcher.c/h` — strips desktop-entry field codes, shell-splits, spawns.
@@ -68,94 +68,41 @@ No test suite (matches the Windows app's own state). No CI.
   avoid destroying a widget still on the call stack.
 - `app_identity.h` — `LINKER_APP_ID`, `LINKER_DESKTOP_ID`, MIME type constants.
 
-## Fixed issue — pill-button rendered the wrong color (GTK auto-class name collision)
+## Known GTK3 gotchas
 
-Symptom was the banner's "Set as default browser" `.pill-button` rendering with background
-`#434C5E` (Nord2 / `surface_container_highest`) instead of the intended `#88C0D0` (`primary`).
-
-Root cause: **GTK3's `GtkButton` automatically adds the built-in style class `.text-button` to any
-button whose content is just a text label** (and `.image-button` for image-only content) — this is
-documented GTK3 behavior, not app code, and applies to every `gtk_button_new_with_label()` button
-in the app, pill button included. The app's own `ui_text_button_new()` happened to *also* use
-`"text-button"` as a custom class name for its own distinct styling. That name collision meant the
-pill button silently matched both `.pill-button` and the app's own `.text-button` rule; with equal
-CSS specificity, the later-declared rule in `generate_css()` (`.text-button`, styled dark gray)
-won the cascade over `.pill-button` (styled Nord8 blue).
-
-Confirmed via `gtk_style_context_to_string()` on the live widget, which showed
-`[button.flat.text-button.pill-button:dir(ltr)]` even though no code path ever called
-`add_class(..., "text-button")` on that widget — the class was GTK's own auto-added one, not app
-code, which is what made it invisible to a source-level search.
-
-Fix: renamed the app's custom class from `"text-button"` to `"linker-text-button"` in
-`ui_widgets.c` (`ui_text_button_new()`) and `theme.c` (`generate_css()`), so it can never collide
-with GTK's automatic per-content-type class names again. The `text-button-primary/-neutral/-error`
-modifier classes were left as-is — they don't collide with anything GTK adds automatically.
-Verified fixed by pixel-sampling a fresh screenshot: the button samples as `(136, 192, 208)` =
-`#88C0D0` exactly.
-
-**Takeaway for any future custom CSS class name**: avoid `text-button` and `image-button` (GTK's
-auto-added content-type classes on `GtkButton`) as literal class names — prefix custom classes
-(e.g. `linker-*`) to rule this out categorically rather than re-litigating it per class.
-
-The debug scaffolding mentioned in earlier notes (`/tmp/linker-debug.css` dump in `apply_css()`,
-`gtk_style_context_to_string()` dump in `build_banner()`) has been removed now that the root cause
-is confirmed. `GError` checking in `apply_css()` was kept permanently, as intended.
-
-## Other things fixed this session (margin/background-vs-margin bugs)
-
-- **GTK3 widget margin sits *outside* a widget's own CSS background** — any widget that both
-  had a background-color CSS class *and* `gtk_widget_set_margin_*()` calls on itself would show
-  the colored band shrunk away from its container's edges instead of a full-bleed background with
-  inset content. Found via pixel-diffing a screenshot of the top bar (`.top-bar` class + margins
-  on the same box). Fixed by splitting into an outer unmargined box (carries the background
-  class, spans full width) wrapping an inner box (carries the margin, holds the actual content) —
-  see `top_bar`/`top_bar_inner` in `ui_main_window.c`. **Audit any future full-bleed colored bar
-  the same way**: if CSS `padding` (real inside-the-background inset, see next bullet) isn't
-  suitable because the design wants asymmetric horizontal/vertical insets, use the
-  outer-background/inner-margin split, never margin directly on a background-classed widget.
+- **GTK auto-adds style classes based on button content**: `GtkButton` gets `.text-button` for a
+  text-only label and `.image-button` for image-only content, regardless of app code. Never reuse
+  those two names for custom CSS classes — a collision lets GTK's own rule win the cascade over
+  the intended one. App classes are prefixed `linker-*` (see `ui_text_button_new()` in
+  `ui_widgets.c` and `generate_css()` in `theme.c`) specifically to rule this out.
+- **Widget margin sits *outside* its own CSS background** — a widget with both a background-color
+  class and `gtk_widget_set_margin_*()` renders the color inset from its container's edges instead
+  of full-bleed. For a full-bleed colored bar with inset content, split into an outer unmargined
+  box (carries the background class) wrapping an inner box (carries the margin/content) — see
+  `top_bar`/`top_bar_inner` in `ui_main_window.c`.
 - **`gtk_container_set_border_width()` is a no-op for child layout on this GTK build (3.24.52)** —
-  discovered while investigating why the banner's title/body text rendered almost flush against
-  the card edges (~3px gap) instead of the intended 16px. Confirmed two ways: (1) allocation dump
-  showed the title label's `GtkAllocation` exactly equal to its parent `GtkBox`'s own allocation —
-  border-width should have offset it inward and didn't; (2) a minimal standalone reproducer
-  (`GtkDialog` + `gtk_container_set_border_width(content_area, 20)`) showed the same — child
-  allocation identical to the container's own. This affects **any** `GtkBox`, including
-  `gtk_dialog_get_content_area()`'s box, not just custom ones. `gtk_widget_set_margin_*()` does
-  **not** fix it either — margin only offsets a widget relative to *its own parent*, it does
-  nothing to that widget's *own children*'s inset (verified with the same reproducer). The actual
-  fix is real CSS `padding` on the container — added generic `.content-pad-16`/`.content-pad-20`
-  utility classes in `theme.c` for this, applied via `gtk_style_context_add_class()` wherever
-  `gtk_container_set_border_width()` was previously used (`build_banner()`'s `.banner` class in
-  `ui_main_window.c`, the chooser window's `root` box in `ui_chooser_window.c`, and the dialog
-  content areas in `ui_settings_dialog.c`/`ui_edit_saved_link_dialog.c`/`ui_edit_browser_dialog.c`).
-  **Do not use `gtk_container_set_border_width()` for new UI on this codebase — use a CSS padding
-  class instead**, and don't assume `gtk_widget_set_margin_*()` is a substitute since it solves a
-  different problem (position-within-parent, not children-inset).
-- Suppressed GTK's default dashed keyboard-focus ring on buttons/switches/entries/textviews
-  (`button:focus, switch:focus, entry:focus, textview:focus { outline-style: none; }` in
-  `theme.c`) — was rendering as a stray dotted box around the "Browsers" tab.
-- Added `:backdrop` CSS overrides for all custom-colored classes so colors stay consistent when
-  the window loses input focus (GTK dims by default otherwise) — real-world impact of this one is
-  unconfirmed since the pill-button bug above was masking/confounding the visual check.
-- Added `background-image: none` alongside `background-color` on every custom button/box class,
-  defending against a theme's own `background-image` gradient compositing over our flat color —
-  didn't turn out to be the pill-button root cause but is correct defensive CSS regardless, keep it.
-- Bumped several `margin_end`/right-edge insets (saved-link row action icons, browser-list row,
-  ManageBrowsersView header) from 16px to 20px, and outlined-entry/textview internal text padding
-  from 8px to 10-12px, per user-reported "content touching the border" screenshots.
+  it does not inset children the way it does on other GTK versions, and `gtk_widget_set_margin_*()`
+  is not a substitute (margin offsets a widget relative to its own parent, not its children). Use
+  the `.content-pad-16`/`.content-pad-20` CSS padding utility classes in `theme.c` instead, applied
+  via `gtk_style_context_add_class()` — see `build_banner()` in `ui_main_window.c`, the chooser
+  window's `root` box in `ui_chooser_window.c`, and the dialog content areas in
+  `ui_settings_dialog.c`/`ui_edit_saved_link_dialog.c`/`ui_edit_browser_dialog.c`.
+- GTK's default dashed keyboard-focus ring is suppressed globally (`button:focus, switch:focus,
+  entry:focus, textview:focus { outline-style: none; }` in `theme.c`).
+- Every custom-colored CSS class gets a `:backdrop` twin so colors stay consistent when the window
+  loses input focus (GTK dims by default otherwise), and `background-image: none` alongside any
+  `background-color`, defending against a GTK theme's own gradient compositing over the flat color.
 
 ## Theme
 
 Full Nord dark/light hex tables in `theme.c` (`DARK_PALETTE`/`LIGHT_PALETTE`), hex-for-hex ported
 from `../linker-windows/Linker/Theme/Colors.axaml`. `generate_css()` builds the entire
 stylesheet as one string from these tables; **every** rule needs `background-image: none`
-alongside any `background-color` (see above) and should get a `:backdrop` twin if it sets a color
-a user might actually see (learned the hard way — keep doing this for new classes). Font is
+alongside any `background-color` (see "Known GTK3 gotchas" above) and should get a `:backdrop`
+twin if it sets a color a user might actually see — keep doing this for new classes. Font is
 Martian Mono, bundled as `data/fonts/*.ttf`, loaded privately via `FcConfigAppFontAddFile` at
-startup (not installed system-wide) so it works on distros without the Nerd Font preinstalled —
-this dev machine happens to already have it via package manager, don't rely on that when testing
-elsewhere.
+startup (not installed system-wide), so it works on distros without the Nerd Font preinstalled
+even if the package is already present locally.
 
 ## Icon
 
@@ -181,10 +128,9 @@ isn't present anywhere in this environment (`../linker` doesn't exist on this ma
 
 ## Testing
 
-No test suite. Verification has been manual: build, launch on the live X11 display
-(`DISPLAY=:0` in this dev environment), screenshot via `gnome-screenshot`, and — critically, learned
-this session — **pixel-sample screenshots with PIL rather than eyeballing them** when checking
-color correctness; the eye is bad at judging whether a rendered color matches an intended hex
-value, and this session's whole styling bug was only conclusively pinned down by sampling actual
-RGB values (`im.getpixel(...)`) and comparing against the palette table. `xdotool` is available
-for scripting clicks/typing into dialogs during manual smoke tests.
+No test suite. Verification is manual: build, launch on a live X11 display (`DISPLAY=:0`),
+screenshot via `gnome-screenshot`, and **pixel-sample screenshots with PIL rather than eyeballing
+them** when checking color correctness — the eye is unreliable for judging whether a rendered
+color matches an intended hex value; sample actual RGB values (`im.getpixel(...)`) and compare
+against the palette table instead. `xdotool` is available for scripting clicks/typing into dialogs
+during manual smoke tests.
