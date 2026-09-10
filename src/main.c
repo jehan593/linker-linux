@@ -1,10 +1,8 @@
 /* Linker for Linux — entry point.
  *
- * Same two-entry-points-one-data-layer model as the Windows app's App.axaml.cs: every
- * launch is a fresh process (there's no long-running background service), and the
- * routing decision is just "does argv contain a URL-shaped argument?" — if so, show
- * the LinkChooserWindow popup instead of the normal MainWindow. Both paths share the
- * same on-disk JSON data store; there is no cross-process IPC.
+ * Every launch is a fresh process (no background service). If argv contains a URL,
+ * show the chooser popup; otherwise show the main window. Both share the same
+ * on-disk data store; no cross-process IPC.
  */
 #include <gtk/gtk.h>
 #include <fontconfig/fontconfig.h>
@@ -41,9 +39,7 @@ static void activate(GtkApplication *app, gpointer user_data) {
     LaunchContext *ctx = user_data;
     linker_theme_init();
 
-    /* Idempotent; keeps Linker listed as an eligible browser candidate regardless of
-     * whether it's currently held as default — same reasoning as the Windows app's
-     * EnsureRegistered() running on every startup. */
+    /* Idempotent — keeps Linker listed as an eligible browser candidate. */
     xdg_default_ensure_registered(ctx->state->icon_256_path);
 
     if (ctx->url_arg) {
@@ -70,8 +66,7 @@ int main(int argc, char **argv) {
     GtkApplication *app = gtk_application_new(LINKER_APP_ID, G_APPLICATION_NON_UNIQUE);
     g_signal_connect(app, "activate", G_CALLBACK(activate), &ctx);
 
-    /* Deliberately run with just argv[0]: we've already extracted the URL argument
-     * ourselves above, and GApplication has no reason to see or reinterpret it. */
+    /* Run with just argv[0]: we already extracted the URL above. */
     int status = g_application_run(G_APPLICATION(app), 1, argv);
 
     g_object_unref(app);

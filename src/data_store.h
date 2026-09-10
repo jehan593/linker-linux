@@ -1,21 +1,18 @@
-/* Flat-JSON persistence for browser preferences and saved links — the Linux analogue
- * of the Windows app's JsonDataStore (named-Mutex + atomic write). Stored at
- * $XDG_DATA_HOME/linker/linker-data.json, guarded per-call by flock() on a sibling
- * lock file so two Linker processes launched at once (every chooser invocation is a
- * fresh process) can't interleave writes and corrupt the file. */
+/* Flat-JSON persistence for browser prefs and saved links. Stored at
+ * $XDG_DATA_HOME/linker/linker-data.json, guarded by flock(). */
 #ifndef LINKER_DATA_STORE_H
 #define LINKER_DATA_STORE_H
 
 #include <glib.h>
 
 typedef struct {
-    gchar *id;                       /* desktop-file basename (no .desktop) or "custom:<uuid>" */
-    gchar *custom_label;             /* nullable */
+    gchar *id;
+    gchar *custom_label;
     gboolean hidden;
     gint order_index;
-    gchar *custom_executable_path;   /* nullable; for custom browsers this IS the exe path */
-    gchar *custom_icon_path;         /* nullable */
-    gchar *extra_arguments;          /* nullable, space-separated/quote-escaped */
+    gchar *custom_executable_path;
+    gchar *custom_icon_path;
+    gchar *extra_arguments;
     gboolean is_custom;
 } BrowserPrefEntity;
 
@@ -40,20 +37,19 @@ void saved_link_entity_free(SavedLinkEntity *entity);
 LinkerData *linker_data_new(void);
 void linker_data_free(LinkerData *data);
 
-/* Loads from disk under an exclusive lock; returns a fresh empty LinkerData (never
- * NULL) if the file doesn't exist yet or fails to parse (logs a warning in that case). */
+/* Loads from disk under flock. Returns empty data if file doesn't exist. */
 LinkerData *linker_data_load(void);
 
-/* Serializes and atomically replaces the data file under an exclusive lock.
- * Returns FALSE and sets *error on failure. */
+/* Serializes and atomically replaces the data file under flock. */
 gboolean linker_data_save(const LinkerData *data, GError **error);
 
 BrowserPrefEntity *linker_data_find_browser_pref(const LinkerData *data, const gchar *id);
 
-/* Exact (trimmed) URL match, matching the Windows dedupe-on-save behavior. */
+/* Exact URL match (trimmed). */
 SavedLinkEntity *linker_data_find_saved_link_by_url(const LinkerData *data, const gchar *url);
 SavedLinkEntity *linker_data_find_saved_link_by_id(const LinkerData *data, gint64 id);
 
-const gchar *linker_data_dir(void); /* $XDG_DATA_HOME/linker, created if missing */
+const gchar *linker_data_dir(void);
+const gchar *linker_data_file_path(void);
 
 #endif

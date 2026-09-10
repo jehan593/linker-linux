@@ -57,9 +57,7 @@ GdkPixbuf *icon_resolve_browser_icon(const gchar *icon_field, gint size) {
             if (pixbuf) return pixbuf;
             g_clear_error(&error);
 
-            /* Some desktop entries give an icon basename without the theme lookup
-             * matching (e.g. a name that's only valid via a hicolor fallback path).
-             * Try stripping a possible extension as a last resort before giving up. */
+            /* Try stripping a possible extension as a last resort. */
             gchar *base = g_path_get_basename(icon_field);
             gchar *dot = strrchr(base, '.');
             if (dot) *dot = '\0';

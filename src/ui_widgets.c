@@ -66,9 +66,7 @@ GtkWidget *ui_outlined_textview_new(GtkWidget **out_textview) {
     GtkWidget *textview = gtk_text_view_new();
     gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(textview), GTK_WRAP_WORD_CHAR);
     gtk_text_view_set_accepts_tab(GTK_TEXT_VIEW(textview), FALSE);
-    /* CSS padding on the "text" node (theme.c) only affects that node's background/clip box —
-     * GtkTextView positions its actual text via these margin properties regardless of CSS
-     * padding, so both are needed to match the outlined entry's inset. */
+    /* CSS padding doesn't position GtkTextView's text — the margin props do. */
     gtk_text_view_set_left_margin(GTK_TEXT_VIEW(textview), 12);
     gtk_text_view_set_right_margin(GTK_TEXT_VIEW(textview), 12);
     gtk_text_view_set_top_margin(GTK_TEXT_VIEW(textview), 10);

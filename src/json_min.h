@@ -1,6 +1,5 @@
-/* Minimal hand-rolled JSON reader/writer for Linker's own small, fully self-controlled
- * schema (two flat entity arrays + a couple of settings fields). Kept dependency-free
- * (no json-glib) to hold the app's footprint to GTK3 + GLib/GIO + libcurl only. */
+/* Minimal hand-rolled JSON reader/writer for Linker's own small schema.
+ * No json-glib dependency — keeps the footprint to GTK3 + GLib/GIO + libcurl. */
 #ifndef LINKER_JSON_MIN_H
 #define LINKER_JSON_MIN_H
 
@@ -36,27 +35,25 @@ typedef struct {
 JsonValue *json_new_null(void);
 JsonValue *json_new_bool(gboolean b);
 JsonValue *json_new_number(gint64 n);
-JsonValue *json_new_string(const gchar *s); /* NULL -> JSON_NULL */
+JsonValue *json_new_string(const gchar *s);
 JsonValue *json_new_array(void);
 JsonValue *json_new_object(void);
 
 void json_array_append(JsonValue *array, JsonValue *item);
 void json_object_set(JsonValue *object, const gchar *key, JsonValue *value);
 
-/* Returns NULL if key absent or object is not JSON_OBJECT. */
 JsonValue *json_object_get(const JsonValue *object, const gchar *key);
 
-/* Accessors with safe defaults when the value is missing/wrong type/JSON_NULL. */
+/* Accessors with safe defaults when the value is missing or wrong type. */
 const gchar *json_get_string(const JsonValue *object, const gchar *key, const gchar *default_value);
 gint64 json_get_int(const JsonValue *object, const gchar *key, gint64 default_value);
 gboolean json_get_bool(const JsonValue *object, const gchar *key, gboolean default_value);
 
 void json_value_free(JsonValue *value);
 
-/* Parses `text`; returns NULL and sets *error on failure. */
 JsonValue *json_parse(const gchar *text, GError **error);
 
-/* Serializes with 2-space pretty printing. Free with g_free. */
+/* Serializes with 2-space pretty printing. */
 gchar *json_to_string(const JsonValue *value);
 
 #endif

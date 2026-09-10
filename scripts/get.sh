@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# One-line install/update/uninstall for Linker, fetching the latest prebuilt release from GitHub.
+# One-line install/update/uninstall for Linker, fetching the latest prebuilt release.
 #
 #   curl -fsSL https://raw.githubusercontent.com/jehan593/linker-linux/main/scripts/get.sh | bash
 #   curl -fsSL https://raw.githubusercontent.com/jehan593/linker-linux/main/scripts/get.sh | bash -s -- --uninstall
 #
-# Install and update are the same command: it always re-fetches the latest release and reinstalls
-# over the previous copy. The extracted release is kept under CACHE_DIR so a later --uninstall (or
-# a manual `make uninstall` from within that dir) works without re-downloading anything. Neither
-# install nor uninstall ever touches saved links/settings under $XDG_DATA_HOME/linker — see
-# install.sh in the release tarball for that guarantee.
+# Install and update are the same command: it always re-fetches the latest release and
+# reinstalls over the previous copy. The extracted release is kept under CACHE_DIR so a
+# later --uninstall works without re-downloading. Neither install nor uninstall ever
+# touches saved links/settings under $XDG_DATA_HOME/linker.
 set -euo pipefail
 
 REPO="jehan593/linker-linux"

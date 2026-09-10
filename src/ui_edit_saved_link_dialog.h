@@ -1,5 +1,4 @@
-/* Edit Link dialog — Linux analogue of Ui/SavedLinks/EditSavedLinkDialog.axaml.
- * Handles its own persistence and refreshes `saved_links_view` on save. */
+/* Edit Link dialog. Handles its own persistence and refreshes saved_links_view. */
 #ifndef LINKER_UI_EDIT_SAVED_LINK_DIALOG_H
 #define LINKER_UI_EDIT_SAVED_LINK_DIALOG_H
 

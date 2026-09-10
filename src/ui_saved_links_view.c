@@ -1,7 +1,6 @@
 #include "ui_saved_links_view.h"
 #include "ui_edit_saved_link_dialog.h"
 #include "ui_widgets.h"
-#include "notesnook_api.h"
 #include "theme.h"
 #include "toast.h"
 #include "util.h"
@@ -74,7 +73,7 @@ static GtkWidget *build_empty_state(void) {
     GtkWidget *icon = gtk_image_new_from_icon_name("insert-link-symbolic", GTK_ICON_SIZE_DIALOG);
     gtk_image_set_pixel_size(GTK_IMAGE(icon), 32);
     GtkWidget *label = ui_body_small_label_new(
-        "No saved links yet — use the bookmark icon in the link chooser to save one.");
+        "No saved links yet — use the bookmark icon to save one.");
     gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
     gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_CENTER);
     gtk_label_set_xalign(GTK_LABEL(label), 0.5);
@@ -118,32 +117,7 @@ static void on_copy_clicked(GtkButton *btn, gpointer user_data) {
     toast_host_show(toast_host, "Copied to clipboard");
 }
 
-static void on_send_clicked(GtkButton *btn, gpointer user_data) {
-    GtkWidget *row = GTK_WIDGET(user_data);
-    GtkWidget *toast_host = g_object_get_data(G_OBJECT(row), "toast-host");
-    const gchar *url = g_object_get_data(G_OBJECT(row), "link-url");
-
-    gtk_widget_set_sensitive(GTK_WIDGET(btn), FALSE);
-    while (gtk_events_pending()) gtk_main_iteration();
-    NotesnookSendOutcome outcome = notesnook_send_link(url);
-    gtk_widget_set_sensitive(GTK_WIDGET(btn), TRUE);
-
-    switch (outcome) {
-        case NOTESNOOK_SEND_SUCCESS:
-            toast_host_show(toast_host, "Sent to Notesnook");
-            break;
-        case NOTESNOOK_SEND_NO_API_KEY:
-            toast_host_show(toast_host, "Set a Notesnook API key in settings first");
-            break;
-        default:
-            toast_host_show(toast_host, "Send failed");
-            break;
-    }
-}
-
-static void on_open_clicked(GtkButton *btn, gpointer user_data) {
-    (void) btn;
-    GtkWidget *row = GTK_WIDGET(user_data);
+static void open_link_from_row(GtkWidget *row) {
     GtkWidget *toast_host = g_object_get_data(G_OBJECT(row), "toast-host");
     const gchar *url = g_object_get_data(G_OBJECT(row), "link-url");
     GError *error = NULL;
@@ -151,6 +125,36 @@ static void on_open_clicked(GtkButton *btn, gpointer user_data) {
         toast_host_show(toast_host, "Couldn't open that link");
         g_clear_error(&error);
     }
+}
+
+static void set_url_label_underline(GtkWidget *label, gboolean hovered) {
+    PangoAttrList *attrs = pango_attr_list_new();
+    pango_attr_list_insert(attrs, pango_attr_underline_new(hovered ? PANGO_UNDERLINE_SINGLE : PANGO_UNDERLINE_NONE));
+    gtk_label_set_attributes(GTK_LABEL(label), attrs);
+    pango_attr_list_unref(attrs);
+}
+
+static gboolean on_url_label_release(GtkWidget *event_box, GdkEventButton *event, gpointer user_data) {
+    (void) event_box;
+    (void) event;
+    open_link_from_row(GTK_WIDGET(user_data));
+    return TRUE;
+}
+
+static gboolean on_url_label_enter(GtkWidget *event_box, GdkEventCrossing *event, gpointer user_data) {
+    (void) event;
+    set_url_label_underline(GTK_WIDGET(user_data), TRUE);
+    GdkCursor *cursor = gdk_cursor_new_for_display(gtk_widget_get_display(event_box), GDK_HAND2);
+    gdk_window_set_cursor(gtk_widget_get_window(event_box), cursor);
+    if (cursor) g_object_unref(cursor);
+    return FALSE;
+}
+
+static gboolean on_url_label_leave(GtkWidget *event_box, GdkEventCrossing *event, gpointer user_data) {
+    (void) event;
+    set_url_label_underline(GTK_WIDGET(user_data), FALSE);
+    gdk_window_set_cursor(gtk_widget_get_window(event_box), NULL);
+    return FALSE;
 }
 
 static void on_delete_clicked(GtkButton *btn, gpointer user_data) {
@@ -190,6 +194,12 @@ static GtkWidget *build_link_row(AppState *state, GtkWidget *toast_host, GtkWidg
     gtk_label_set_xalign(GTK_LABEL(url_label), 0.0);
     gtk_style_context_add_class(gtk_widget_get_style_context(url_label), "linker-url-text");
 
+    /* Clicking the URL (not a button) opens it in the default browser */
+    GtkWidget *url_event = gtk_event_box_new();
+    gtk_style_context_add_class(gtk_widget_get_style_context(url_event), "url-link");
+    gtk_widget_add_events(url_event, GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+    gtk_container_add(GTK_CONTAINER(url_event), url_label);
+
     gchar *time_str = linker_format_time_of_day(entity->saved_at_millis);
     GtkWidget *time_label = ui_body_small_label_new(time_str);
     g_free(time_str);
@@ -198,18 +208,13 @@ static GtkWidget *build_link_row(AppState *state, GtkWidget *toast_host, GtkWidg
     gtk_widget_set_halign(action_row, GTK_ALIGN_END);
     GtkWidget *edit_btn = ui_icon_button_new("document-edit-symbolic", "Edit", TRUE);
     GtkWidget *copy_btn = ui_icon_button_new("edit-copy-symbolic", "Copy", TRUE);
-    GtkWidget *send_btn = ui_icon_button_new("document-send-symbolic", "Send to Notesnook", TRUE);
-    GtkWidget *open_btn = ui_icon_button_new("document-open-symbolic", "Open", TRUE);
     GtkWidget *delete_btn = ui_icon_button_new("user-trash-symbolic", "Delete", TRUE);
-    gtk_style_context_add_class(gtk_widget_get_style_context(open_btn), "icon-tint-primary");
     gtk_style_context_add_class(gtk_widget_get_style_context(delete_btn), "icon-tint-error");
     gtk_box_pack_start(GTK_BOX(action_row), edit_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(action_row), copy_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(action_row), send_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(action_row), open_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(action_row), delete_btn, FALSE, FALSE, 0);
 
-    gtk_box_pack_start(GTK_BOX(row), url_label, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(row), url_event, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(row), time_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(row), action_row, FALSE, FALSE, 0);
 
@@ -221,10 +226,11 @@ static GtkWidget *build_link_row(AppState *state, GtkWidget *toast_host, GtkWidg
     g_object_set_data(G_OBJECT(row), "toast-host", toast_host);
     g_object_set_data(G_OBJECT(row), "saved-links-view", view);
 
+    g_signal_connect(url_event, "button-release-event", G_CALLBACK(on_url_label_release), row);
+    g_signal_connect(url_event, "enter-notify-event", G_CALLBACK(on_url_label_enter), url_label);
+    g_signal_connect(url_event, "leave-notify-event", G_CALLBACK(on_url_label_leave), url_label);
     g_signal_connect(edit_btn, "clicked", G_CALLBACK(on_edit_clicked), row);
     g_signal_connect(copy_btn, "clicked", G_CALLBACK(on_copy_clicked), row);
-    g_signal_connect(send_btn, "clicked", G_CALLBACK(on_send_clicked), row);
-    g_signal_connect(open_btn, "clicked", G_CALLBACK(on_open_clicked), row);
     g_signal_connect(delete_btn, "clicked", G_CALLBACK(on_delete_clicked), row);
 
     return row;

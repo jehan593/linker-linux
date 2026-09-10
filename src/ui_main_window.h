@@ -1,5 +1,4 @@
-/* Main launcher window — the Linux analogue of MainWindow.axaml: top app bar,
- * dismissable-while-true default-browser banner, Browsers/Saved Links tabs. */
+/* Main window — app bar, default-browser banner, Browsers/Saved Links tabs. */
 #ifndef LINKER_UI_MAIN_WINDOW_H
 #define LINKER_UI_MAIN_WINDOW_H
 

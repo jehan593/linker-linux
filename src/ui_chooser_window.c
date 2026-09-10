@@ -6,7 +6,40 @@
 #include "icon_resolve.h"
 #include "toast.h"
 #include "util.h"
-#include "notesnook_api.h"
+#include "window_geometry.h"
+
+/* The URL box always shows exactly this many rows, scrolling past it. */
+#define URL_TEXTVIEW_ROWS 5
+
+/* The browser list shows this many rows without scrolling. */
+#define BROWSER_ROWS_VISIBLE 5
+
+/* Locks the URL scroller to a fixed pixel height for `rows` lines of rendered text.
+ * Must run after realize: that's the first point the font is resolved. */
+static void fixate_textview_rows(GtkTextView *view, GtkWidget *scroller, gint rows) {
+    PangoFontDescription *font = NULL;
+    gtk_style_context_get(gtk_widget_get_style_context(GTK_WIDGET(view)),
+                          gtk_widget_get_state_flags(GTK_WIDGET(view)),
+                          "font", &font, NULL);
+    if (!font) return;
+
+    PangoLayout *layout = pango_layout_new(gtk_widget_get_pango_context(GTK_WIDGET(view)));
+    pango_layout_set_font_description(layout, font);
+    pango_layout_set_text(layout, "Ag", -1);
+    gint line_height = 0;
+    pango_layout_get_pixel_size(layout, NULL, &line_height);
+    g_object_unref(layout);
+    pango_font_description_free(font);
+    if (line_height <= 0) return;
+
+    /* +4 covers the outlined 1px borders on both the scroller and the textview. */
+    gint vinset = gtk_text_view_get_top_margin(view) + gtk_text_view_get_bottom_margin(view) + 4;
+    gtk_widget_set_size_request(scroller, -1, line_height * rows + vinset);
+}
+
+static void on_url_textview_realized(GtkWidget *widget, gpointer user_data) {
+    fixate_textview_rows(GTK_TEXT_VIEW(widget), GTK_WIDGET(user_data), URL_TEXTVIEW_ROWS);
+}
 
 static gchar *current_url_text(GtkWidget *window) {
     GtkWidget *url_textview = g_object_get_data(G_OBJECT(window), "url-textview");
@@ -60,38 +93,16 @@ static void on_save_clicked(GtkButton *btn, gpointer user_data) {
     if (*url) {
         SavedLinkEntity *existing = linker_data_find_saved_link_by_url(state->data, url);
         if (existing) {
-            existing->saved_at_millis = linker_now_millis();
+            /* saved_links is a free-func array, so removal already frees the entity */
+            g_ptr_array_remove(state->data->saved_links, existing);
+            toast_host_show(toast_host, "Removed from saved links");
         } else {
             SavedLinkEntity *entity = saved_link_entity_new(state->data->next_saved_link_id++, url, linker_now_millis());
             g_ptr_array_add(state->data->saved_links, entity);
+            toast_host_show(toast_host, "Saved");
         }
         app_state_save(state, toast_host);
-        toast_host_show(toast_host, "Saved");
         update_save_icon(window);
-    }
-    g_free(url);
-}
-
-static void on_send_clicked(GtkButton *btn, gpointer user_data) {
-    GtkWidget *window = GTK_WIDGET(user_data);
-    GtkWidget *toast_host = g_object_get_data(G_OBJECT(window), "toast-host");
-    gchar *url = current_url_text(window);
-
-    gtk_widget_set_sensitive(GTK_WIDGET(btn), FALSE);
-    while (gtk_events_pending()) gtk_main_iteration();
-    NotesnookSendOutcome outcome = notesnook_send_link(url);
-    gtk_widget_set_sensitive(GTK_WIDGET(btn), TRUE);
-
-    switch (outcome) {
-        case NOTESNOOK_SEND_SUCCESS:
-            toast_host_show(toast_host, "Sent to Notesnook");
-            break;
-        case NOTESNOOK_SEND_NO_API_KEY:
-            toast_host_show(toast_host, "Set a Notesnook API key in settings first");
-            break;
-        default:
-            toast_host_show(toast_host, "Send failed");
-            break;
     }
     g_free(url);
 }
@@ -177,6 +188,7 @@ GtkWidget *ui_chooser_window_new(GtkApplication *app, AppState *state, const gch
     gtk_window_set_title(GTK_WINDOW(window), "Linker");
     gtk_widget_set_size_request(window, 380, -1);
     gtk_window_set_default_size(GTK_WINDOW(window), 440, -1);
+    window_geometry_apply(GTK_WINDOW(window), "chooser");
     gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
     gtk_window_set_keep_above(GTK_WINDOW(window), TRUE);
     gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), TRUE);
@@ -201,21 +213,17 @@ GtkWidget *ui_chooser_window_new(GtkApplication *app, AppState *state, const gch
 
     GtkWidget *copy_btn = ui_icon_button_new("edit-copy-symbolic", "Copy link", FALSE);
     GtkWidget *save_btn = ui_icon_button_new("non-starred-symbolic", "Save link", FALSE);
-    GtkWidget *send_btn = ui_icon_button_new("document-send-symbolic", "Send to Notesnook", FALSE);
 
     gtk_box_pack_start(GTK_BOX(header_row), globe_icon, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(header_row), host_label, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(header_row), copy_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(header_row), save_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(header_row), send_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(root), header_row, FALSE, FALSE, 0);
 
-    /* editable URL box */
+    /* editable URL box: fixed at URL_TEXTVIEW_ROWS once realized; longer content
+     * scrolls inside that fixed height instead of growing the window. */
     GtkWidget *url_textview_widget = NULL;
     GtkWidget *url_scroller = ui_outlined_textview_new(&url_textview_widget);
-    gtk_widget_set_size_request(url_scroller, -1, 50);
-    gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(url_scroller), 120);
-    gtk_scrolled_window_set_propagate_natural_height(GTK_SCROLLED_WINDOW(url_scroller), TRUE);
     gtk_box_pack_start(GTK_BOX(root), url_scroller, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(root), ui_hairline_new(), FALSE, FALSE, 0);
@@ -227,7 +235,7 @@ GtkWidget *ui_chooser_window_new(GtkApplication *app, AppState *state, const gch
     gtk_widget_set_vexpand(list_area, TRUE);
 
     GtkWidget *empty_label = ui_body_small_label_new(
-        "No browsers to show — everything might be hidden. Check Manage Browsers.");
+        "No browsers to show — check Manage Browsers.");
     gtk_label_set_line_wrap(GTK_LABEL(empty_label), TRUE);
     gtk_label_set_max_width_chars(GTK_LABEL(empty_label), 46);
     gtk_label_set_justify(GTK_LABEL(empty_label), GTK_JUSTIFY_CENTER);
@@ -237,7 +245,6 @@ GtkWidget *ui_chooser_window_new(GtkApplication *app, AppState *state, const gch
 
     GtkWidget *list_scroller = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(list_scroller), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(list_scroller), 300);
     gtk_scrolled_window_set_propagate_natural_height(GTK_SCROLLED_WINDOW(list_scroller), TRUE);
     GtkWidget *browsers_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_container_add(GTK_CONTAINER(list_scroller), browsers_box);
@@ -246,18 +253,19 @@ GtkWidget *ui_chooser_window_new(GtkApplication *app, AppState *state, const gch
     gtk_box_pack_start(GTK_BOX(list_area), list_scroller, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(root), list_area, TRUE, TRUE, 0);
 
-    /* toast host: a fixed-height row here (not an overlay), matching the chooser's
-     * distinct layout from MainWindow's overlay-based ToastHost */
+    /* toast host: a fixed-height row here (not an overlay), unlike MainWindow */
     GtkWidget *toast_host = toast_host_new();
     gtk_widget_set_size_request(toast_host, -1, 34);
     gtk_box_pack_start(GTK_BOX(root), toast_host, FALSE, FALSE, 0);
 
-    /* bottom button row */
+    /* bottom row: Manage browsers left, Cancel right */
     GtkWidget *bottom_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-    gtk_widget_set_halign(bottom_row, GTK_ALIGN_START);
     GtkWidget *manage_btn = ui_text_button_new("Manage browsers", "text-button-neutral");
     GtkWidget *cancel_btn = ui_text_button_new("Cancel", "text-button-neutral");
+    GtkWidget *bottom_spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_widget_set_hexpand(bottom_spacer, TRUE);
     gtk_box_pack_start(GTK_BOX(bottom_row), manage_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(bottom_row), bottom_spacer, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(bottom_row), cancel_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(root), bottom_row, FALSE, FALSE, 0);
 
@@ -270,9 +278,9 @@ GtkWidget *ui_chooser_window_new(GtkApplication *app, AppState *state, const gch
 
     g_signal_connect(gtk_text_view_get_buffer(GTK_TEXT_VIEW(url_textview_widget)), "changed",
                       G_CALLBACK(on_url_buffer_changed), window);
+    g_signal_connect(url_textview_widget, "realize", G_CALLBACK(on_url_textview_realized), url_scroller);
     g_signal_connect(copy_btn, "clicked", G_CALLBACK(on_copy_clicked), window);
     g_signal_connect(save_btn, "clicked", G_CALLBACK(on_save_clicked), window);
-    g_signal_connect(send_btn, "clicked", G_CALLBACK(on_send_clicked), window);
     g_signal_connect(manage_btn, "clicked", G_CALLBACK(on_manage_clicked), window);
     g_signal_connect(cancel_btn, "clicked", G_CALLBACK(on_cancel_clicked), window);
 
@@ -290,10 +298,21 @@ GtkWidget *ui_chooser_window_new(GtkApplication *app, AppState *state, const gch
     } else {
         gtk_widget_hide(empty_label);
         gtk_widget_show(list_scroller);
+        GtkWidget *first_row = NULL;
         for (guint i = 0; i < visible->len; i++) {
             BrowserListItem *item = g_ptr_array_index(visible, i);
-            gtk_box_pack_start(GTK_BOX(browsers_box), build_browser_row(window, item), FALSE, FALSE, 0);
+            GtkWidget *row = build_browser_row(window, item);
+            if (!first_row) first_row = row;
+            gtk_box_pack_start(GTK_BOX(browsers_box), row, FALSE, FALSE, 0);
         }
+        /* Fit exactly BROWSER_ROWS_VISIBLE rows with no scrollbar: measure the first
+         * real row instead of guessing. +2 slack avoids off-by-one scroll. */
+        gint row_min = 0, row_nat = 0;
+        gtk_widget_get_preferred_height(first_row, &row_min, &row_nat);
+        gint row_h = MAX(row_min, row_nat);
+        /* +2 slack: GTK treats content exactly at max_content_height as scrolling. */
+        gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(list_scroller),
+                                                  row_h * BROWSER_ROWS_VISIBLE + 2);
     }
 
     gtk_widget_show_all(window);
