@@ -5,8 +5,6 @@
 
 A browser chooser for Linux (C + GTK3). When you click a link, Linker pops up and lets
 you pick which browser opens it — work vs. personal, Brave vs. Firefox, and so on.
-Same look and feature set as the [Windows](https://github.com/jehan593/linker-windows)
-and Android versions.
 
 No background process — every launch is a fresh, short-lived app. Installs per-user,
 no root needed. Saved links and settings live under `$XDG_DATA_HOME/linker`.
