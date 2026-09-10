@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Per-user install/uninstall for Linker — mirrors the Windows installer's philosophy
-# (installer/linker.iss): no admin/root needed, everything lives under the user's own
-# prefix, and uninstall never touches saved links/settings.
+# Per-user install/uninstall for Linker: no root needed, everything lives under the
+# user's own prefix, and uninstall never touches saved links/settings.
 #
 # Usage:
 #   ./install.sh [PREFIX]              (default: ~/.local)
@@ -20,12 +19,10 @@ elif [ -n "${1:-}" ]; then
 fi
 
 BIN_DIR="$PREFIX/bin"
-ASSETS_DIR="$PREFIX/share/linker"     # bundled fonts/icons only — NOT the runtime data
+ASSETS_DIR="$PREFIX/share/linker"     # bundled fonts/icons — NOT the runtime data
                                        # dir, even though it's the same path under the
-                                       # default prefix (both resolve under
-                                       # $XDG_DATA_HOME/linker); linker-data.json /
-                                       # settings.json live alongside but are never
-                                       # touched here.
+                                       # default prefix; linker-data.json / settings.json
+                                       # live alongside but are never touched here.
 APPS_DIR="$PREFIX/share/applications"
 ICON_THEME_DIR="$PREFIX/share/icons/hicolor"
 DESKTOP_FILE="$APPS_DIR/linker.desktop"
@@ -41,7 +38,7 @@ if [ "$MODE" = "uninstall" ]; then
     done
     command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS_DIR" >/dev/null 2>&1 || true
     command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -t "$ICON_THEME_DIR" >/dev/null 2>&1 || true
-    echo "Done. Saved links and Notesnook settings under \$XDG_DATA_HOME/linker were left alone."
+    echo "Done. Saved links under \$XDG_DATA_HOME/linker were left alone."
     exit 0
 fi
 

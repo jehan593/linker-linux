@@ -1,19 +1,56 @@
 #include "ui_main_window.h"
 #include "ui_browsers_view.h"
 #include "ui_saved_links_view.h"
-#include "ui_settings_dialog.h"
 #include "ui_widgets.h"
 #include "xdg_default.h"
 #include "toast.h"
+#include "app_context.h"
+#include <gio/gio.h>
+
+static void update_banner_visibility(GtkWidget *window);
+
+static gboolean any_modal_dialog_open(void) {
+    GList *toplevels = gtk_window_list_toplevels();
+    gboolean modal = FALSE;
+    for (GList *l = toplevels; l && !modal; l = l->next) {
+        modal = gtk_window_get_modal(GTK_WINDOW(l->data));
+    }
+    g_list_free(toplevels);
+    return modal;
+}
+
+/* The main window is a separate process from every chooser popup, so changes made
+ * elsewhere never reach its in-memory data. Watch the data directory and reload on
+ * any write to linker-data.json. */
+static void on_data_file_changed(GFileMonitor *monitor, GFile *file, GFile *other_file,
+                                 GFileMonitorEvent event, gpointer user_data) {
+    (void) monitor;
+    (void) other_file;
+    if (event != G_FILE_MONITOR_EVENT_CHANGED && event != G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT &&
+        event != G_FILE_MONITOR_EVENT_CREATED && event != G_FILE_MONITOR_EVENT_MOVED) {
+        return;
+    }
+    gchar *base = g_file_get_basename(file);
+    gboolean is_data_file = base && g_strcmp0(base, "linker-data.json") == 0;
+    g_free(base);
+    if (!is_data_file) return;
+
+    /* Skip reload while a modal edit dialog is open — its nested loop would deliver
+     * this event mid-edit and invalidate pointers into the data arrays. The change is
+     * picked up again on the next event, focus in, or tab switch. */
+    if (any_modal_dialog_open()) return;
+
+    GtkWidget *window = GTK_WIDGET(user_data);
+    AppState *state = g_object_get_data(G_OBJECT(window), "state");
+    app_state_reload(state);
+    update_banner_visibility(window);
+    ui_browsers_view_refresh(g_object_get_data(G_OBJECT(window), "browsers-view"));
+    ui_saved_links_view_refresh(g_object_get_data(G_OBJECT(window), "saved-view"));
+}
 
 static void update_banner_visibility(GtkWidget *window) {
     GtkWidget *banner = g_object_get_data(G_OBJECT(window), "banner");
     gtk_widget_set_visible(banner, !xdg_default_is_default());
-}
-
-static void on_settings_clicked(GtkButton *btn, gpointer user_data) {
-    (void) btn;
-    ui_settings_dialog_run(GTK_WINDOW(user_data));
 }
 
 static void on_request_default_clicked(GtkButton *btn, gpointer user_data) {
@@ -36,12 +73,12 @@ static GtkWidget *build_banner(GtkWidget *window) {
     gtk_widget_set_margin_top(banner, 16);
     gtk_widget_set_margin_bottom(banner, 16);
 
-    GtkWidget *title = gtk_label_new("Linker isn't your default browser yet");
+    GtkWidget *title = gtk_label_new("Linker isn't your default browser");
     gtk_style_context_add_class(gtk_widget_get_style_context(title), "banner-title");
     gtk_label_set_xalign(GTK_LABEL(title), 0.0);
     gtk_label_set_line_wrap(GTK_LABEL(title), TRUE);
 
-    GtkWidget *body = gtk_label_new("Set it as default so links you open anywhere go through this chooser first.");
+    GtkWidget *body = gtk_label_new("Set it as default so links open through this chooser.");
     gtk_style_context_add_class(gtk_widget_get_style_context(body), "banner-body");
     gtk_label_set_xalign(GTK_LABEL(body), 0.0);
     gtk_label_set_line_wrap(GTK_LABEL(body), TRUE);
@@ -85,12 +122,18 @@ static void select_tab(GtkWidget *window, gboolean browsers_selected) {
 
     gtk_widget_set_visible(browsers_view, browsers_selected);
     gtk_widget_set_visible(saved_view, !browsers_selected);
-    if (!browsers_selected) ui_saved_links_view_refresh(saved_view);
+    if (!browsers_selected) {
+        AppState *state = g_object_get_data(G_OBJECT(window), "state");
+        app_state_reload(state);
+        ui_saved_links_view_refresh(saved_view);
+    }
 }
 
 static gboolean on_window_focus_in(GtkWidget *window, GdkEventFocus *event, gpointer user_data) {
     (void) event;
     (void) user_data;
+    AppState *state = g_object_get_data(G_OBJECT(window), "state");
+    app_state_reload(state);
     update_banner_visibility(window);
     ui_browsers_view_refresh(g_object_get_data(G_OBJECT(window), "browsers-view"));
     ui_saved_links_view_refresh(g_object_get_data(G_OBJECT(window), "saved-view"));
@@ -115,11 +158,8 @@ GtkWidget *ui_main_window_show(GtkApplication *app, AppState *state) {
     GtkWidget *root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_container_add(GTK_CONTAINER(window), root);
 
-    /* top bar: the "top-bar" background class lives on the outer, unmargined box so
-     * it paints edge-to-edge; the actual 16/12 inset is margin on an inner content
-     * box instead — GTK3 widget margin sits *outside* a widget's own CSS background,
-     * so putting both the background class and the margin on the same widget would
-     * shrink the colored band away from the window edges instead of insetting content. */
+    /* top bar: outer box carries the full-bleed background class; inner box carries
+     * the margin (GTK3 widget margin sits outside its own CSS background). */
     GtkWidget *top_bar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_style_context_add_class(gtk_widget_get_style_context(top_bar), "top-bar");
 
@@ -147,12 +187,9 @@ GtkWidget *ui_main_window_show(GtkApplication *app, AppState *state) {
     GtkWidget *top_spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_widget_set_hexpand(top_spacer, TRUE);
 
-    GtkWidget *settings_btn = ui_icon_button_new("emblem-system-symbolic", "Notesnook settings", FALSE);
-
     gtk_box_pack_start(GTK_BOX(top_bar_inner), app_icon_img, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(top_bar_inner), title_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(top_bar_inner), top_spacer, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(top_bar_inner), settings_btn, FALSE, FALSE, 0);
 
     GtkWidget *banner = build_banner(window);
 
@@ -201,8 +238,17 @@ GtkWidget *ui_main_window_show(GtkApplication *app, AppState *state) {
 
     g_signal_connect(browsers_tab, "toggled", G_CALLBACK(on_browsers_tab_toggled), window);
     g_signal_connect(saved_tab, "toggled", G_CALLBACK(on_saved_tab_toggled), window);
-    g_signal_connect(settings_btn, "clicked", G_CALLBACK(on_settings_clicked), window);
     g_signal_connect(window, "focus-in-event", G_CALLBACK(on_window_focus_in), NULL);
+
+    gchar *data_dir_path = g_path_get_dirname(linker_data_file_path());
+    GFile *data_dir = g_file_new_for_path(data_dir_path);
+    g_free(data_dir_path);
+    GFileMonitor *data_monitor = g_file_monitor_directory(data_dir, G_FILE_MONITOR_NONE, NULL, NULL);
+    g_object_unref(data_dir);
+    if (data_monitor) {
+        g_signal_connect(data_monitor, "changed", G_CALLBACK(on_data_file_changed), window);
+        g_object_set_data_full(G_OBJECT(window), "data-monitor", data_monitor, g_object_unref);
+    }
 
     state->main_window = window;
     gtk_widget_show_all(window);

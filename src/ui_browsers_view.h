@@ -1,4 +1,4 @@
-/* Manage Browsers tab — the Linux analogue of Ui/Browsers/ManageBrowsersView.axaml. */
+/* Manage Browsers tab. */
 #ifndef LINKER_UI_BROWSERS_VIEW_H
 #define LINKER_UI_BROWSERS_VIEW_H
 
@@ -7,13 +7,10 @@
 
 GtkWidget *ui_browsers_view_new(AppState *state, GtkWidget *toast_host);
 
-/* Force-rescans and rebuilds the row list — call after any mutation, and when the
- * main window regains focus (matches Windows re-querying on Window.Activated). */
+/* Force-rescan and rebuild the row list. Call after any mutation or focus change. */
 void ui_browsers_view_refresh(GtkWidget *view);
 
-/* Schedules a refresh on the next idle iteration — safe to call from within a row's
- * own signal handler, where an immediate refresh would destroy the widget whose
- * handler is still on the call stack. */
+/* Schedules a refresh on the next idle — safe from within a row's signal handler. */
 void ui_browsers_view_refresh_deferred(GtkWidget *view);
 
 #endif

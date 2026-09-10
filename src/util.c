@@ -84,18 +84,3 @@ gchar *linker_format_day_header(gint64 millis) {
     g_date_time_unref(utc);
     return result;
 }
-
-gchar *linker_html_escape(const gchar *s) {
-    if (!s) return g_strdup("");
-    GString *out = g_string_new(NULL);
-    for (const gchar *p = s; *p; p++) {
-        switch (*p) {
-            case '&': g_string_append(out, "&amp;"); break;
-            case '<': g_string_append(out, "&lt;"); break;
-            case '>': g_string_append(out, "&gt;"); break;
-            case '"': g_string_append(out, "&quot;"); break;
-            default: g_string_append_c(out, *p);
-        }
-    }
-    return g_string_free(out, FALSE);
-}

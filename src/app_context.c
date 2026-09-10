@@ -50,3 +50,9 @@ void app_state_save(AppState *state, GtkWidget *error_toast_host) {
         if (error_toast_host) toast_host_show(error_toast_host, "Couldn't save changes");
     }
 }
+
+void app_state_reload(AppState *state) {
+    LinkerData *fresh = linker_data_load();
+    linker_data_free(state->data);
+    state->data = fresh;
+}

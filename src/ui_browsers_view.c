@@ -39,7 +39,7 @@ static void move_row(GtkWidget *row, gint direction) {
     GtkWidget *toast_host = g_object_get_data(G_OBJECT(row), "toast-host");
     const gchar *id = g_object_get_data(G_OBJECT(row), "browser-id");
 
-    GPtrArray *list = browsers_get_manage_list(state->data);
+    GPtrArray *list = browsers_get_manage_list(state->data, NULL);
     gint idx = -1;
     for (guint i = 0; i < list->len; i++) {
         BrowserListItem *it = g_ptr_array_index(list, i);
@@ -48,7 +48,16 @@ static void move_row(GtkWidget *row, gint direction) {
             break;
         }
     }
-    gint other = idx + direction;
+    gint other = idx;
+    for (;;) {
+        other += direction;
+        if (other < 0 || (guint) other >= list->len) {
+            other = -1;
+            break;
+        }
+        BrowserListItem *cand = g_ptr_array_index(list, other);
+        if (!cand->hidden) break;
+    }
     if (idx >= 0 && other >= 0 && (guint) other < list->len) {
         BrowserListItem *a = g_ptr_array_index(list, idx);
         BrowserListItem *b = g_ptr_array_index(list, other);
@@ -100,7 +109,7 @@ static void on_edit_clicked(GtkButton *btn, gpointer user_data) {
     GtkWidget *toast_host = g_object_get_data(G_OBJECT(row), "toast-host");
     const gchar *id = g_object_get_data(G_OBJECT(row), "browser-id");
 
-    GPtrArray *list = browsers_get_manage_list(state->data);
+    GPtrArray *list = browsers_get_manage_list(state->data, NULL);
     BrowserListItem *found = NULL;
     for (guint i = 0; i < list->len; i++) {
         BrowserListItem *it = g_ptr_array_index(list, i);
@@ -117,7 +126,7 @@ static void on_edit_clicked(GtkButton *btn, gpointer user_data) {
 }
 
 static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkWidget *browsers_view,
-                                     const BrowserListItem *item, guint index, guint total) {
+                                     const BrowserListItem *item, guint index, guint total, gboolean show_move) {
     GtkWidget *row_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_margin_start(row_box, 16);
     gtk_widget_set_margin_end(row_box, 20);
@@ -125,13 +134,18 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
     gtk_widget_set_margin_bottom(row_box, 10);
     gtk_style_context_add_class(gtk_widget_get_style_context(row_box), "row-hairline");
 
-    GtkWidget *move_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-    GtkWidget *up_btn = ui_icon_button_new("go-up-symbolic", "Move up", TRUE);
-    GtkWidget *down_btn = ui_icon_button_new("go-down-symbolic", "Move down", TRUE);
-    gtk_widget_set_sensitive(up_btn, index > 0);
-    gtk_widget_set_sensitive(down_btn, index + 1 < total);
-    gtk_box_pack_start(GTK_BOX(move_box), up_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(move_box), down_btn, FALSE, FALSE, 0);
+    GtkWidget *move_box = NULL;
+    GtkWidget *up_btn = NULL;
+    GtkWidget *down_btn = NULL;
+    if (show_move) {
+        move_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        up_btn = ui_icon_button_new("go-up-symbolic", "Move up", TRUE);
+        down_btn = ui_icon_button_new("go-down-symbolic", "Move down", TRUE);
+        gtk_widget_set_sensitive(up_btn, index > 0);
+        gtk_widget_set_sensitive(down_btn, index + 1 < total);
+        gtk_box_pack_start(GTK_BOX(move_box), up_btn, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(move_box), down_btn, FALSE, FALSE, 0);
+    }
 
     GdkPixbuf *pixbuf = icon_resolve_browser_icon(browser_list_item_icon_field(item), 30);
     GtkWidget *icon_img = gtk_image_new_from_pixbuf(pixbuf);
@@ -142,13 +156,7 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
     gtk_widget_set_valign(label_box, GTK_ALIGN_CENTER);
     GtkWidget *display_label = gtk_label_new(NULL);
     gtk_label_set_xalign(GTK_LABEL(display_label), 0.0);
-    if (item->hidden) {
-        gchar *markup = g_markup_printf_escaped("<s>%s</s>", item->display_label);
-        gtk_label_set_markup(GTK_LABEL(display_label), markup);
-        g_free(markup);
-    } else {
-        gtk_label_set_text(GTK_LABEL(display_label), item->display_label);
-    }
+    gtk_label_set_text(GTK_LABEL(display_label), item->display_label);
     gtk_box_pack_start(GTK_BOX(label_box), display_label, FALSE, FALSE, 0);
     if (item->system_label && *item->system_label && g_strcmp0(item->display_label, item->system_label) != 0) {
         gtk_box_pack_start(GTK_BOX(label_box), ui_body_small_label_new(item->system_label), FALSE, FALSE, 0);
@@ -161,9 +169,9 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
     gtk_switch_set_state(GTK_SWITCH(switch_widget), !item->hidden);
     gtk_widget_set_valign(switch_widget, GTK_ALIGN_CENTER);
 
-    gtk_box_pack_start(GTK_BOX(row_box), move_box, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(row_box), icon_img, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(row_box), label_box, TRUE, TRUE, 0);
+    if (move_box) gtk_box_pack_start(GTK_BOX(row_box), move_box, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(row_box), edit_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(row_box), switch_widget, FALSE, FALSE, 0);
 
@@ -175,11 +183,25 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
     g_object_set_data(G_OBJECT(row), "state", state);
     g_object_set_data(G_OBJECT(row), "toast-host", toast_host);
 
-    g_signal_connect(up_btn, "clicked", G_CALLBACK(on_move_up_clicked), row);
-    g_signal_connect(down_btn, "clicked", G_CALLBACK(on_move_down_clicked), row);
+    if (up_btn) g_signal_connect(up_btn, "clicked", G_CALLBACK(on_move_up_clicked), row);
+    if (down_btn) g_signal_connect(down_btn, "clicked", G_CALLBACK(on_move_down_clicked), row);
     g_signal_connect(edit_btn, "clicked", G_CALLBACK(on_edit_clicked), row);
     g_signal_connect(switch_widget, "state-set", G_CALLBACK(on_hide_toggle), row);
 
+    return row;
+}
+
+static GtkWidget *build_disabled_header(void) {
+    GtkWidget *row = gtk_list_box_row_new();
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_style_context_add_class(gtk_widget_get_style_context(box), "day-header");
+    GtkWidget *label = ui_label_label_new("Disabled");
+    gtk_widget_set_margin_start(label, 16);
+    gtk_widget_set_margin_end(label, 16);
+    gtk_widget_set_margin_top(label, 6);
+    gtk_widget_set_margin_bottom(label, 6);
+    gtk_box_pack_start(GTK_BOX(box), label, FALSE, FALSE, 0);
+    gtk_container_add(GTK_CONTAINER(row), box);
     return row;
 }
 
@@ -194,8 +216,9 @@ void ui_browsers_view_refresh(GtkWidget *view) {
     for (GList *l = children; l; l = l->next) gtk_widget_destroy(GTK_WIDGET(l->data));
     g_list_free(children);
 
-    GPtrArray *list = browsers_get_manage_list(state->data);
-    app_state_save(state, NULL); /* persist any newly-materialized order_index, silently */
+    guint materialized = 0;
+    GPtrArray *list = browsers_get_manage_list(state->data, &materialized);
+    if (materialized > 0) app_state_save(state, NULL); /* persist newly-synthesized order_index values */
 
     if (list->len == 0) {
         gtk_widget_show(empty_state);
@@ -203,9 +226,28 @@ void ui_browsers_view_refresh(GtkWidget *view) {
     } else {
         gtk_widget_hide(empty_state);
         gtk_widget_show(scroller);
+        guint enabled_total = 0;
         for (guint i = 0; i < list->len; i++) {
             BrowserListItem *item = g_ptr_array_index(list, i);
-            GtkWidget *row = build_browser_row(state, toast_host, view, item, i, list->len);
+            if (!item->hidden) enabled_total++;
+        }
+        guint enabled_index = 0;
+        for (guint i = 0; i < list->len; i++) {
+            BrowserListItem *item = g_ptr_array_index(list, i);
+            if (item->hidden) continue;
+            GtkWidget *row = build_browser_row(state, toast_host, view, item, enabled_index, enabled_total, TRUE);
+            gtk_list_box_insert(GTK_LIST_BOX(list_box), row, -1);
+            enabled_index++;
+        }
+        gboolean header_added = FALSE;
+        for (guint i = 0; i < list->len; i++) {
+            BrowserListItem *item = g_ptr_array_index(list, i);
+            if (!item->hidden) continue;
+            if (!header_added) {
+                gtk_list_box_insert(GTK_LIST_BOX(list_box), build_disabled_header(), -1);
+                header_added = TRUE;
+            }
+            GtkWidget *row = build_browser_row(state, toast_host, view, item, 0, 0, FALSE);
             gtk_list_box_insert(GTK_LIST_BOX(list_box), row, -1);
         }
         gtk_widget_show_all(list_box);

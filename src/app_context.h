@@ -1,7 +1,5 @@
-/* Shared, explicitly-passed application state — the data store, the bundled asset
- * directory (fonts/icons), and a handle back to the main window (so the chooser
- * popup's "Manage browsers" button can raise it). Passed by pointer through GTK
- * callback user_data rather than kept as hidden globals. */
+/* Shared application state — data store, bundled assets, main window handle.
+ * Passed explicitly through GTK callback user_data, not kept as globals. */
 #ifndef LINKER_APP_CONTEXT_H
 #define LINKER_APP_CONTEXT_H
 
@@ -15,15 +13,16 @@ typedef struct {
     GtkWidget *main_window; /* NULL until the main window exists */
 } AppState;
 
-/* Locates the bundled data/ dir whether running from the source tree or an installed
- * prefix ($XDG_DATA_HOME/linker). Returns NULL if neither is found. */
+/* Locates the bundled data/ dir (source tree or installed prefix). */
 gchar *app_find_asset_dir(void);
 
 AppState *app_state_new(void);
 void app_state_free(AppState *state);
 
-/* Saves app->data to disk, showing `error_toast_host` a toast on failure (pass NULL
- * to skip the toast, e.g. from non-UI contexts). */
+/* Saves data to disk, showing a toast on failure (pass NULL to skip). */
 void app_state_save(AppState *state, GtkWidget *error_toast_host);
+
+/* Reloads data from disk. Call after another process may have written to the file. */
+void app_state_reload(AppState *state);
 
 #endif

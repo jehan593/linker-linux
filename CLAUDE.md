@@ -41,8 +41,6 @@ No test suite (matches the Windows app's own state). No CI.
 - `json_min.c/h` — minimal hand-rolled JSON parser/writer.
 - `data_store.c/h` — `BrowserPrefEntity`/`SavedLinkEntity` + flock-guarded atomic-write JSON
   persistence at `$XDG_DATA_HOME/linker/linker-data.json`.
-- `notesnook_store.c/h`, `notesnook_api.c/h` — separate `settings.json`; libcurl POST to
-  `https://inbox.notesnook.com/` (`source: "linker-linux"`).
 - `theme.c/h` — Nord dark/light palette tables, generates the whole app's GTK3 CSS as one
   stylesheet string, OS dark/light detection (xdg-desktop-portal D-Bus, GSettings fallback) with
   live watching. **See "Known GTK3 gotchas" below before touching this file.**
@@ -59,8 +57,8 @@ No test suite (matches the Windows app's own state). No CI.
 - `ui_widgets.c/h` — shared control factories (pill/text/icon buttons, labels, outlined
   entry/textview) applying the CSS classes from `theme.c`.
 - `ui_main_window.c/h`, `ui_browsers_view.c/h`, `ui_edit_browser_dialog.c/h`,
-  `ui_saved_links_view.c/h`, `ui_edit_saved_link_dialog.c/h`, `ui_settings_dialog.c/h`,
-  `ui_chooser_window.c/h` — one file per screen/dialog, named after their Windows XAML
+  `ui_saved_links_view.c/h`, `ui_edit_saved_link_dialog.c/h`, `ui_chooser_window.c/h` — one file
+  per screen/dialog, named after their Windows XAML
   counterparts. Mutation pattern throughout: after any edit, full rebuild-from-data-store rather
   than incremental widget patching (same philosophy the Windows CLAUDE.md describes for its own
   ViewModels). Row-owned signal handlers that might destroy their own row use the exported
@@ -85,8 +83,8 @@ No test suite (matches the Windows app's own state). No CI.
   is not a substitute (margin offsets a widget relative to its own parent, not its children). Use
   the `.content-pad-16`/`.content-pad-20` CSS padding utility classes in `theme.c` instead, applied
   via `gtk_style_context_add_class()` — see `build_banner()` in `ui_main_window.c`, the chooser
-  window's `root` box in `ui_chooser_window.c`, and the dialog content areas in
-  `ui_settings_dialog.c`/`ui_edit_saved_link_dialog.c`/`ui_edit_browser_dialog.c`.
+window's `root` box in `ui_chooser_window.c`, and the dialog content areas in
+   `ui_edit_saved_link_dialog.c`/`ui_edit_browser_dialog.c`.
 - GTK's default dashed keyboard-focus ring is suppressed globally (`button:focus, switch:focus,
   entry:focus, textview:focus { outline-style: none; }` in `theme.c`).
 - Every custom-colored CSS class gets a `:backdrop` twin so colors stay consistent when the window

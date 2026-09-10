@@ -5,7 +5,7 @@
 #include "toast.h"
 #include <string.h>
 
-#define RESPONSE_LEFT 100 /* Delete (custom) / Reset to defaults (registry) */
+#define RESPONSE_LEFT 100 /* Delete (custom) / Reset to defaults (system) */
 
 typedef struct {
     GtkWindow *parent;
@@ -79,14 +79,14 @@ static void on_use_default_clicked(GtkButton *btn, gpointer user_data) {
 
 static void on_browse_exec_clicked(GtkButton *btn, gpointer user_data) {
     (void) btn;
-    GtkWidget *entry = GTK_WIDGET(user_data);
-    GtkWidget *toplevel = gtk_widget_get_toplevel(entry);
+    GtkTextView *view = user_data;
+    GtkWidget *toplevel = gtk_widget_get_toplevel(GTK_WIDGET(view));
     GtkWidget *chooser = gtk_file_chooser_dialog_new(
         "Choose an executable", GTK_WINDOW(toplevel), GTK_FILE_CHOOSER_ACTION_OPEN,
         "_Cancel", GTK_RESPONSE_CANCEL, "_Open", GTK_RESPONSE_ACCEPT, NULL);
     if (gtk_dialog_run(GTK_DIALOG(chooser)) == GTK_RESPONSE_ACCEPT) {
         gchar *path = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));
-        gtk_entry_set_text(GTK_ENTRY(entry), path);
+        ui_textview_set_text(view, path);
         g_free(path);
     }
     gtk_widget_destroy(chooser);
@@ -114,7 +114,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
     GtkWidget *dialog = gtk_dialog_new_with_buttons(
         is_add ? "Add browser" : "Edit browser", parent,
         GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, NULL, NULL);
-    gtk_window_set_default_size(GTK_WINDOW(dialog), 460, 560);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 500, 620);
     gtk_widget_set_size_request(dialog, 380, 420);
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 
@@ -155,21 +155,24 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
     GtkWidget *name_entry = ui_outlined_entry_new();
     gtk_box_pack_start(GTK_BOX(form), name_entry, FALSE, FALSE, 0);
 
-    gtk_box_pack_start(GTK_BOX(form), ui_label_label_new("Executable path"), FALSE, FALSE, 0);
-    GtkWidget *exec_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    GtkWidget *exec_entry = ui_outlined_entry_new();
-    gtk_widget_set_hexpand(exec_entry, TRUE);
+    GtkWidget *target_scroll, *target_view;
+    gtk_box_pack_start(GTK_BOX(form), ui_label_label_new("Target"), FALSE, FALSE, 0);
+    target_scroll = ui_outlined_textview_new(&target_view);
+    gtk_widget_set_hexpand(target_scroll, TRUE);
+    gtk_widget_set_size_request(target_scroll, -1, 84);
+    gtk_box_pack_start(GTK_BOX(form), target_scroll, TRUE, FALSE, 0);
     GtkWidget *browse_btn = ui_text_button_new("Browse…", "text-button-neutral");
-    gtk_box_pack_start(GTK_BOX(exec_row), exec_entry, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(exec_row), browse_btn, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(form), exec_row, FALSE, FALSE, 0);
+    gtk_widget_set_halign(browse_btn, GTK_ALIGN_START);
+    gtk_box_pack_start(GTK_BOX(form), browse_btn, FALSE, FALSE, 0);
 
-    gtk_box_pack_start(GTK_BOX(form), ui_label_label_new("Extra launch arguments (optional)"), FALSE, FALSE, 0);
-    GtkWidget *args_entry = ui_outlined_entry_new();
-    gtk_box_pack_start(GTK_BOX(form), args_entry, FALSE, FALSE, 0);
+    GtkWidget *args_scroll, *args_view;
+    gtk_box_pack_start(GTK_BOX(form), ui_label_label_new("Additional parameters"), FALSE, FALSE, 0);
+    args_scroll = ui_outlined_textview_new(&args_view);
+    gtk_widget_set_size_request(args_scroll, -1, 84);
+    gtk_box_pack_start(GTK_BOX(form), args_scroll, FALSE, FALSE, 0);
     GtkWidget *args_hint = ui_body_small_label_new(
         "Space-separated, added before the link — e.g. --private-window --new-window. "
-        "Use double quotes around an argument that contains spaces.");
+        "Quote arguments that contain spaces.");
     gtk_label_set_line_wrap(GTK_LABEL(args_hint), TRUE);
     gtk_label_set_max_width_chars(GTK_LABEL(args_hint), 56);
     gtk_box_pack_start(GTK_BOX(form), args_hint, FALSE, FALSE, 0);
@@ -196,11 +199,9 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
 
     /* prefill */
     gtk_entry_set_text(GTK_ENTRY(name_entry), item ? item->display_label : "");
-    gtk_entry_set_text(GTK_ENTRY(exec_entry), item ? browser_list_item_effective_cmdline(item) : "");
-    gtk_entry_set_text(GTK_ENTRY(args_entry), (item && item->extra_arguments) ? item->extra_arguments : "");
+    ui_textview_set_text(GTK_TEXT_VIEW(target_view), item ? browser_list_item_effective_cmdline(item) : "");
+    ui_textview_set_text(GTK_TEXT_VIEW(args_view), (item && item->extra_arguments) ? item->extra_arguments : "");
     gtk_entry_set_activates_default(GTK_ENTRY(name_entry), TRUE);
-    gtk_entry_set_activates_default(GTK_ENTRY(exec_entry), TRUE);
-    gtk_entry_set_activates_default(GTK_ENTRY(args_entry), TRUE);
     gtk_widget_set_can_default(save_btn, TRUE);
     gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
 
@@ -216,7 +217,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
 
     g_signal_connect(change_icon_btn, "clicked", G_CALLBACK(on_change_icon_clicked), &ctx);
     g_signal_connect(use_default_btn, "clicked", G_CALLBACK(on_use_default_clicked), &ctx);
-    g_signal_connect(browse_btn, "clicked", G_CALLBACK(on_browse_exec_clicked), exec_entry);
+    g_signal_connect(browse_btn, "clicked", G_CALLBACK(on_browse_exec_clicked), target_view);
     g_signal_connect(save_btn, "clicked", G_CALLBACK(response_trampoline_ok), dialog);
     g_signal_connect(cancel_btn, "clicked", G_CALLBACK(response_trampoline_cancel), dialog);
     if (left_btn) g_signal_connect(left_btn, "clicked", G_CALLBACK(response_trampoline_left), dialog);
@@ -230,7 +231,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
         response = gtk_dialog_run(GTK_DIALOG(dialog));
         if (response != GTK_RESPONSE_OK || !validate) break;
 
-        gchar *exec_trim = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(exec_entry))));
+        gchar *exec_trim = g_strstrip(ui_textview_get_text(GTK_TEXT_VIEW(target_view)));
         gchar *name_trim = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(name_entry))));
         gboolean ok = TRUE;
         if (!*exec_trim) {
@@ -247,8 +248,8 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
 
     if (response == GTK_RESPONSE_OK) {
         gchar *name_trim = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(name_entry))));
-        gchar *exec_trim = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(exec_entry))));
-        gchar *args_trim = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(args_entry))));
+        gchar *exec_trim = g_strstrip(ui_textview_get_text(GTK_TEXT_VIEW(target_view)));
+        gchar *args_trim = g_strstrip(ui_textview_get_text(GTK_TEXT_VIEW(args_view)));
 
         if (is_add) {
             gchar *uuid = g_uuid_string_random();

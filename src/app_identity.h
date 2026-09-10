@@ -1,4 +1,4 @@
-/* App-wide identity constants — the Linux analogue of Util/AppIdentity.cs. */
+/* App-wide identity constants. */
 #ifndef LINKER_APP_IDENTITY_H
 #define LINKER_APP_IDENTITY_H
 

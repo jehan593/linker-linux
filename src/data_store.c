@@ -103,6 +103,12 @@ static gchar *data_file_path(void) {
     return g_build_filename(linker_data_dir(), "linker-data.json", NULL);
 }
 
+const gchar *linker_data_file_path(void) {
+    static gchar *path = NULL;
+    if (!path) path = data_file_path();
+    return path;
+}
+
 static gchar *lock_file_path(void) {
     return g_build_filename(linker_data_dir(), "linker-data.lock", NULL);
 }

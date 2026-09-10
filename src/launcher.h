@@ -1,14 +1,12 @@
-/* Launches the chosen browser — the Linux analogue of Util/BrowserLauncher.cs. */
+/* Launches the chosen browser. Shell-splits the command, appends the URL, spawns. */
 #ifndef LINKER_LAUNCHER_H
 #define LINKER_LAUNCHER_H
 
 #include <glib.h>
 #include "browsers.h"
 
-/* Shell-splits the effective command (custom override or system base command) and any
- * extra_arguments, appends `url` as the final argument, and g_spawn_asyncs it.
- * Returns FALSE and sets *error on failure (nothing to launch, bad quoting, or spawn
- * failure) — caller shows a toast, matching "Couldn't open that link". */
+/* Shell-splits the effective command and extra_arguments, appends the URL, and
+ * spawns asynchronously. Returns FALSE on failure. */
 gboolean launcher_open_browser(const BrowserListItem *item, const gchar *url, GError **error);
 
 #endif

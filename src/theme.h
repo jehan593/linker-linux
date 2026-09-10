@@ -1,8 +1,5 @@
-/* Nord dark/light palette (hex-for-hex port of the Windows app's Colors.axaml /
- * NordColors.cs) plus the GTK3 CSS stylesheet generated from it, and OS dark/light
- * detection (xdg-desktop-portal, with a GSettings fallback) with live watching so
- * flipping the desktop theme updates the app without a restart — mirrors the Windows
- * app following AppsUseLightTheme via SystemEvents.UserPreferenceChanged. */
+/* Nord dark/light palette, GTK3 CSS stylesheet, and OS dark/light detection
+ * with live watching. */
 #ifndef LINKER_THEME_H
 #define LINKER_THEME_H
 
@@ -23,13 +20,11 @@ typedef struct {
     const char *row_hover;
 } NordPalette;
 
-/* Fixed, non-theme-swapped search-highlight colors (Nord13 bg / Nord0 fg). */
+/* Search-highlight colors (fixed, not theme-swapped). */
 #define LINKER_HIGHLIGHT_BG "#EBCB8B"
 #define LINKER_HIGHLIGHT_FG "#2E3440"
 
-/* Sets up the shared GtkCssProvider on the default screen, detects the initial OS
- * dark/light preference, and starts watching for live changes. Call once at startup
- * after gtk_init. */
+/* Call once at startup after gtk_init. */
 void linker_theme_init(void);
 
 gboolean linker_theme_is_dark(void);

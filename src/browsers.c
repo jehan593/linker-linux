@@ -42,8 +42,8 @@ const gchar *browser_list_item_effective_cmdline(const BrowserListItem *item) {
     return item->system_exec_cmdline;
 }
 
-/* Strips freedesktop Exec= field codes (%f %F %u %U %i %c %k, %% -> %) leaving the
- * base command (possibly still multi-token, e.g. "flatpak run org.mozilla.firefox"). */
+/* Strips freedesktop Exec= field codes (%f %F %u %U %i %c %k, %% -> %),
+ * leaving the base command. */
 static gchar *strip_exec_field_codes(const gchar *exec) {
     if (!exec) return g_strdup("");
     GString *out = g_string_new(NULL);
@@ -193,10 +193,9 @@ static gint compare_by_order(gconstpointer a, gconstpointer b) {
     return ia->order_index - ib->order_index;
 }
 
-/* Merges raw scanned browsers with `data`'s prefs, appends custom browsers, and
- * synthesizes+materializes order_index for anything not yet persisted — mirrors
- * BrowserPrefsRepository.Merge / the "lock in order before any single mutation" rule. */
-static GPtrArray *merge_with_prefs(GPtrArray *scanned, LinkerData *data) {
+/* Merges scanned browsers with prefs, appends custom browsers, and synthesizes
+ * order_index for anything not yet persisted. */
+static GPtrArray *merge_with_prefs(GPtrArray *scanned, LinkerData *data, guint *materialized_out) {
     GPtrArray *result = g_ptr_array_new_with_free_func((GDestroyNotify) browser_list_item_free);
 
     gint max_order = -1;
@@ -219,15 +218,14 @@ static GPtrArray *merge_with_prefs(GPtrArray *scanned, LinkerData *data) {
             item->extra_arguments = g_strdup(pref->extra_arguments);
         } else {
             item->order_index = next_synthetic++;
-            /* materialize so future scans/reorders see a stable, persisted order */
             BrowserPrefEntity *materialized = browser_pref_entity_new(item->id);
             materialized->order_index = item->order_index;
             g_ptr_array_add(data->browser_prefs, materialized);
+            if (materialized_out) (*materialized_out)++;
         }
         g_ptr_array_add(result, item);
     }
-    /* Items were moved into `result` by reference; free just the container, not the
-     * elements (free_seg=FALSE skips invoking scanned's element_free_func). */
+    /* Items were moved by reference — free just the container, not the elements. */
     gpointer *raw = g_ptr_array_free(scanned, FALSE);
     g_free(raw);
 
@@ -254,9 +252,9 @@ static GPtrArray *merge_with_prefs(GPtrArray *scanned, LinkerData *data) {
     return result;
 }
 
-GPtrArray *browsers_get_manage_list(LinkerData *data) {
+GPtrArray *browsers_get_manage_list(LinkerData *data, guint *materialized_out) {
     GPtrArray *scanned = scan_desktop_browsers();
-    return merge_with_prefs(scanned, data);
+    return merge_with_prefs(scanned, data, materialized_out);
 }
 
 /* ---------- 5-minute TTL cache of the raw scan, for the chooser's fast path ---------- */
@@ -334,7 +332,7 @@ GPtrArray *browsers_get_visible_list(LinkerData *data) {
         save_cached_scan(scanned);
     }
 
-    GPtrArray *merged = merge_with_prefs(scanned, data);
+    GPtrArray *merged = merge_with_prefs(scanned, data, NULL);
 
     GPtrArray *visible = g_ptr_array_new_with_free_func((GDestroyNotify) browser_list_item_free);
     for (guint i = 0; i < merged->len; i++) {

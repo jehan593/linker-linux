@@ -52,10 +52,7 @@ static gchar *generate_css(const NordPalette *p) {
         p->background, p->on_background);
     ADD("window:backdrop, dialog:backdrop { background-color: %s; color: %s; }\n", p->background, p->on_background);
 
-    /* Suppress GTK's default dashed keyboard-focus ring on our custom controls — the
-     * border-color change on entries/textviews and the checked-state underline on
-     * tabs are already sufficient focus indication, and the box-drawn ring reads as
-     * a rendering glitch against the custom pill/tab shapes. */
+    /* Suppress GTK's dashed keyboard-focus ring on custom controls. */
     ADD("button:focus, switch:focus, entry:focus, textview:focus { outline-style: none; outline-width: 0; }\n");
 
     ADD(".linker-title { font-family: 'MartianMono NF Med'; font-size: 16px; }\n");
@@ -95,7 +92,8 @@ static gchar *generate_css(const NordPalette *p) {
         p->surface_container_highest, p->outline_variant);
     ADD(".linker-text-button:backdrop { background-color: %s; background-image: none; border-color: %s; }\n",
         p->surface_container_highest, p->outline_variant);
-    ADD(".linker-text-button:hover { border-color: %s; }\n", p->outline);
+    ADD(".linker-text-button:hover { background-color: alpha(%s, 0.30); background-image: none; }\n", p->primary);
+    ADD(".linker-text-button:active { background-color: alpha(%s, 0.50); background-image: none; }\n", p->primary);
     ADD(".linker-text-button:disabled { opacity: 0.4; }\n");
     ADD(".text-button-primary { color: %s; }\n", p->primary);
     ADD(".text-button-neutral { color: %s; }\n", p->on_surface_variant);
@@ -128,6 +126,7 @@ static gchar *generate_css(const NordPalette *p) {
     ADD(".row-hover:hover { background-color: %s; background-image: none; }\n", p->surface_container);
     ADD(".chooser-row { border-radius: 8px; }\n");
     ADD(".chooser-row:hover { background-color: %s; background-image: none; }\n", p->row_hover);
+    ADD(".url-link { border-radius: 4px; }\n");
 
     ADD(".card { background-color: %s; background-image: none; border: 1px solid %s; border-radius: 20px; "
         "box-shadow: 0 4px 24px 0 rgba(0,0,0,0.35); }\n", p->surface_container_high, p->outline_variant);
@@ -154,10 +153,8 @@ static gchar *generate_css(const NordPalette *p) {
     ADD("list row, listbox row { background-color: transparent; padding: 0; }\n");
     ADD("list row:selected, listbox row:selected { background-color: transparent; }\n");
 
-    /* gtk_container_set_border_width() is a no-op for GtkBox/GtkDialog content-area
-     * child layout on this GTK build (confirmed via allocation dump: children land
-     * flush with the container's own edge regardless of border-width). Use real CSS
-     * padding instead everywhere inner-content inset is needed. */
+    /* gtk_container_set_border_width() is a no-op for GtkBox/GtkDialog content
+     * layout on this GTK build — use real CSS padding for inner content inset. */
     ADD(".content-pad-16 { padding: 16px; }\n");
     ADD(".content-pad-20 { padding: 20px; }\n");
 
@@ -223,7 +220,7 @@ static gint detect_dark_via_gsettings(void) {
 static void redetect_and_apply(void) {
     gint outcome = detect_dark_via_portal(g_session_bus);
     if (outcome < 0) outcome = detect_dark_via_gsettings();
-    g_is_dark = (outcome < 0) ? TRUE : (outcome == 1); /* default to dark, matching the Windows app */
+    g_is_dark = (outcome < 0) ? TRUE : (outcome == 1); /* default to dark */
     apply_css();
 }
 
@@ -248,12 +245,9 @@ static void on_gsettings_changed(GSettings *settings, const gchar *key, gpointer
 
 void linker_theme_init(void) {
     g_provider = gtk_css_provider_new();
-    /* Linker has its own fixed Nord design system and must render identically
-     * regardless of the user's system GTK theme — but GTK auto-loads
-     * ~/.config/gtk-3.0/gtk.css at GTK_STYLE_PROVIDER_PRIORITY_USER, which outranks
-     * PRIORITY_APPLICATION and was silently overriding our button/card colors with
-     * the user's own theme accent colors. Go one priority level above USER so our
-     * stylesheet always wins. */
+    /* Linker must render identically regardless of the user's GTK theme. GTK
+     * auto-loads ~/.config/gtk-3.0/gtk.css at PRIORITY_USER, which outranks
+     * PRIORITY_APPLICATION — go one level above USER so our stylesheet wins. */
     gtk_style_context_add_provider_for_screen(
         gdk_screen_get_default(), GTK_STYLE_PROVIDER(g_provider), GTK_STYLE_PROVIDER_PRIORITY_USER + 1);
 
