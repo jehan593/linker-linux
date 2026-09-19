@@ -71,20 +71,20 @@ static GtkWidget *build_banner(GtkWidget *window) {
     gtk_widget_set_margin_start(banner, 16);
     gtk_widget_set_margin_end(banner, 16);
     gtk_widget_set_margin_top(banner, 16);
-    gtk_widget_set_margin_bottom(banner, 16);
+    gtk_widget_set_margin_bottom(banner, 12);
 
-    GtkWidget *title = gtk_label_new("Linker isn't your default browser");
+    GtkWidget *title = gtk_label_new("Choose how links open");
     gtk_style_context_add_class(gtk_widget_get_style_context(title), "banner-title");
     gtk_label_set_xalign(GTK_LABEL(title), 0.0);
     gtk_label_set_line_wrap(GTK_LABEL(title), TRUE);
 
-    GtkWidget *body = gtk_label_new("Set it as default so links open through this chooser.");
+    GtkWidget *body = gtk_label_new("Make Linker your default to pick a browser for each link.");
     gtk_style_context_add_class(gtk_widget_get_style_context(body), "banner-body");
     gtk_label_set_xalign(GTK_LABEL(body), 0.0);
     gtk_label_set_line_wrap(GTK_LABEL(body), TRUE);
 
     GtkWidget *btn = ui_pill_button_new("Set as default browser");
-    gtk_widget_set_halign(btn, GTK_ALIGN_START);
+    gtk_widget_set_halign(btn, GTK_ALIGN_FILL);
     gtk_widget_set_margin_top(btn, 4);
 
     gtk_box_pack_start(GTK_BOX(banner), title, FALSE, FALSE, 0);
@@ -132,6 +132,7 @@ static void select_tab(GtkWidget *window, gboolean browsers_selected) {
 static gboolean on_window_focus_in(GtkWidget *window, GdkEventFocus *event, gpointer user_data) {
     (void) event;
     (void) user_data;
+    if (any_modal_dialog_open()) return FALSE;
     AppState *state = g_object_get_data(G_OBJECT(window), "state");
     app_state_reload(state);
     update_banner_visibility(window);
@@ -195,10 +196,13 @@ GtkWidget *ui_main_window_show(GtkApplication *app, AppState *state) {
 
     /* tab row */
     GtkWidget *tab_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_box_set_homogeneous(GTK_BOX(tab_row), TRUE);
     gtk_style_context_add_class(gtk_widget_get_style_context(tab_row), "tab-row");
     gtk_widget_set_size_request(tab_row, -1, 44);
     GtkWidget *browsers_tab = gtk_toggle_button_new_with_label("Browsers");
-    GtkWidget *saved_tab = gtk_toggle_button_new_with_label("Saved Links");
+    GtkWidget *saved_tab = gtk_toggle_button_new_with_label("Saved links");
+    gtk_widget_set_can_focus(browsers_tab, FALSE);
+    gtk_widget_set_can_focus(saved_tab, FALSE);
     gtk_style_context_add_class(gtk_widget_get_style_context(browsers_tab), "flat");
     gtk_style_context_add_class(gtk_widget_get_style_context(browsers_tab), "tab-button");
     gtk_style_context_add_class(gtk_widget_get_style_context(saved_tab), "flat");
@@ -252,6 +256,7 @@ GtkWidget *ui_main_window_show(GtkApplication *app, AppState *state) {
 
     state->main_window = window;
     gtk_widget_show_all(window);
+    ui_browsers_view_refresh(browsers_view);
     gtk_widget_set_visible(saved_view, FALSE);
     update_banner_visibility(window);
 

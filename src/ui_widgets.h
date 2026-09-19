@@ -4,14 +4,16 @@
 
 #include <gtk/gtk.h>
 
-/* Pill-shaped filled button (primary background). */
+/* Confirm an irreversible deletion with a red primary action. Enter confirms. */
+gboolean ui_confirm_delete(GtkWindow *parent, const gchar *title, const gchar *consequence);
+
+/* Rounded filled button (primary background). */
 GtkWidget *ui_pill_button_new(const gchar *label_text);
 
-/* Text button with a color class ("text-button-primary", "text-button-neutral",
- * "text-button-error"). */
+/* Outlined secondary button. Cancel, error and warning actions are text-only. */
 GtkWidget *ui_text_button_new(const gchar *label_text, const gchar *color_class);
 
-/* Circular icon button. `small` selects the 24x24 variant. */
+/* Quiet icon button. `small` selects the 32x32 variant. */
 GtkWidget *ui_icon_button_new(const gchar *icon_name, const gchar *tooltip, gboolean small);
 
 GtkWidget *ui_title_label_new(const gchar *text);
@@ -31,5 +33,8 @@ GtkWidget *ui_hairline_new(void);
 /* Convenience: get/set plain text on a GtkTextView's buffer. Free the result with g_free. */
 gchar *ui_textview_get_text(GtkTextView *view);
 void ui_textview_set_text(GtkTextView *view, const gchar *text);
+
+/* Bare Enter (no Shift/Ctrl/Alt) answers `dialog` with `response`. */
+void ui_bind_enter(GtkWidget *widget, GtkWidget *dialog, gint response);
 
 #endif

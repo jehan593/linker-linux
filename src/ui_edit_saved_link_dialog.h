@@ -5,7 +5,7 @@
 #include <gtk/gtk.h>
 #include "app_context.h"
 
-void ui_edit_saved_link_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *toast_host,
+void ui_edit_saved_link_dialog_run(GtkWindow *parent, AppState *state,
                                     gint64 link_id, const gchar *current_url, GtkWidget *saved_links_view);
 
 #endif

@@ -1,7 +1,7 @@
 #include "theme.h"
 
 static const NordPalette DARK_PALETTE = {
-    .primary = "#88C0D0", .on_primary = "#2E3440", .primary_container = "#5E81AC", .on_primary_container = "#ECEFF4",
+    .primary = "#81A1C1", .on_primary = "#2E3440", .primary_container = "#5E81AC", .on_primary_container = "#ECEFF4",
     .secondary = "#8FBCBB", .on_secondary = "#2E3440", .secondary_container = "#434C5E", .on_secondary_container = "#ECEFF4",
     .tertiary = "#81A1C1", .on_tertiary = "#2E3440", .tertiary_container = "#434C5E", .on_tertiary_container = "#ECEFF4",
     .background = "#2E3440", .on_background = "#ECEFF4",
@@ -16,7 +16,7 @@ static const NordPalette DARK_PALETTE = {
 };
 
 static const NordPalette LIGHT_PALETTE = {
-    .primary = "#5E81AC", .on_primary = "#ECEFF4", .primary_container = "#88C0D0", .on_primary_container = "#2E3440",
+    .primary = "#81A1C1", .on_primary = "#2E3440", .primary_container = "#D8DEE9", .on_primary_container = "#2E3440",
     .secondary = "#8FBCBB", .on_secondary = "#2E3440", .secondary_container = "#E5E9F0", .on_secondary_container = "#2E3440",
     .tertiary = "#81A1C1", .on_tertiary = "#ECEFF4", .tertiary_container = "#E5E9F0", .on_tertiary_container = "#2E3440",
     .background = "#ECEFF4", .on_background = "#2E3440",
@@ -48,29 +48,30 @@ static gchar *generate_css(const NordPalette *p) {
 
 #define ADD(...) g_string_append_printf(css, __VA_ARGS__)
 
-    ADD("window, dialog { background-color: %s; color: %s; font-family: 'MartianMono NF'; font-size: 13px; }\n",
+    ADD("* { font-family: 'MartianMono NF', 'Martian Mono', monospace; }\n");
+    ADD("window, dialog { background-image: none; background-color: %s; color: %s; font-size: 13px; }\n",
         p->background, p->on_background);
     ADD("window:backdrop, dialog:backdrop { background-color: %s; color: %s; }\n", p->background, p->on_background);
 
-    /* Suppress GTK's dashed keyboard-focus ring on custom controls. */
-    ADD("button:focus, switch:focus, entry:focus, textview:focus { outline-style: none; outline-width: 0; }\n");
+    ADD("button, entry, textview, switch { color: %s; text-shadow: none; }\n", p->on_surface);
+    ADD("label, label:backdrop { color: %s; }\n", p->on_surface);
+    ADD("entry, entry:backdrop, textview, textview:backdrop, textview text, textview text:backdrop { color: %s; }\n", p->on_surface);
+    ADD("button label, button label:backdrop { color: inherit; text-shadow: none; }\n");
+    ADD("dialog, dialog:backdrop { background-color: %s; background-image: none; }\n", p->surface);
 
-    ADD(".linker-title { font-family: 'MartianMono NF Med'; font-size: 16px; }\n");
+    ADD(".linker-title { font-family: 'MartianMono NF Med', monospace; font-size: 14px; }\n");
     ADD(".linker-label { font-family: 'MartianMono NF Med'; font-size: 12px; color: %s; }\n", p->on_surface_variant);
     ADD(".linker-body-small { font-size: 12px; color: %s; }\n", p->on_surface_variant);
     ADD(".linker-url-text { color: %s; font-size: 13px; }\n", p->primary);
     ADD(".linker-url-text:backdrop { color: %s; }\n", p->primary);
 
-    ADD(".top-bar { background-color: %s; background-image: none; border-bottom: 1px solid %s; }\n",
-        p->surface_container, p->outline_variant);
+    ADD(".top-bar { background-color: %s; background-image: none; border: none; }\n", p->surface);
     ADD(".top-bar:backdrop { background-color: %s; background-image: none; }\n", p->surface_container);
-    ADD(".top-bar-title { font-family: 'MartianMono NF Med'; font-size: 18px; }\n");
+    ADD(".top-bar-title { font-family: 'MartianMono NF Med', monospace; font-size: 14px; }\n");
 
-    ADD(".banner { background-color: %s; background-image: none; border-radius: 12px; padding: 16px; }\n", p->primary_container);
-    ADD(".banner:backdrop { background-color: %s; background-image: none; }\n", p->primary_container);
-    ADD(".banner-title { color: %s; font-family: 'MartianMono NF Med'; font-size: 14px; }\n", p->on_primary_container);
-    ADD(".banner-body { color: %s; font-size: 12px; }\n", p->on_primary_container);
-    ADD(".banner-title:backdrop, .banner-body:backdrop { color: %s; }\n", p->on_primary_container);
+    ADD(".banner, .banner:backdrop { background-color: %s; background-image: none; border-radius: 12px; padding: 12px; }\n", p->surface);
+    ADD(".banner-title, .banner-title:backdrop { color: %s; font-family: 'MartianMono NF Med', monospace; font-size: 14px; }\n", p->on_surface);
+    ADD(".banner-body, .banner-body:backdrop { color: %s; font-size: 12px; }\n", p->on_surface_variant);
 
     ADD(".tab-row { background-color: %s; border-bottom: 1px solid %s; }\n", p->surface, p->outline_variant);
     ADD(".tab-button { background-color: transparent; background-image: none; color: %s; border: none; "
@@ -81,33 +82,37 @@ static gchar *generate_css(const NordPalette *p) {
     ADD(".tab-button:checked:backdrop { color: %s; border-bottom-color: %s; }\n", p->primary, p->primary);
     ADD(".tab-button:hover { background-color: %s; }\n", p->surface_container_high);
 
-    ADD(".pill-button { background-color: %s; background-image: none; color: %s; border-radius: 20px; padding: 8px 16px; "
+    ADD(".pill-button { background-color: %s; background-image: none; color: %s; border-radius: 12px; padding: 8px 16px; "
         "font-family: 'MartianMono NF Med'; border: none; box-shadow: none; text-shadow: none; }\n", p->primary, p->on_primary);
     ADD(".pill-button:backdrop { background-color: %s; background-image: none; color: %s; }\n", p->primary, p->on_primary);
     ADD(".pill-button:hover { opacity: 0.88; }\n");
     ADD(".pill-button:active { opacity: 0.74; }\n");
 
-    ADD(".linker-text-button { background-color: %s; background-image: none; border: 1px solid %s; border-radius: 8px; "
-        "padding: 7px 14px; margin: 0 4px; font-family: 'MartianMono NF'; box-shadow: none; text-shadow: none; }\n",
-        p->surface_container_highest, p->outline_variant);
-    ADD(".linker-text-button:backdrop { background-color: %s; background-image: none; border-color: %s; }\n",
-        p->surface_container_highest, p->outline_variant);
-    ADD(".linker-text-button:hover { background-color: alpha(%s, 0.30); background-image: none; }\n", p->primary);
-    ADD(".linker-text-button:active { background-color: alpha(%s, 0.50); background-image: none; }\n", p->primary);
+    ADD(".linker-text-button, .linker-text-button:backdrop { background-color: transparent; background-image: none; border: 1px solid %s; border-radius: 12px; "
+        "padding: 8px 12px; margin: 0; font-family: 'MartianMono NF Med', monospace; box-shadow: none; text-shadow: none; }\n", p->outline);
+    ADD(".linker-text-button:hover { border-color: %s; }\n", p->primary);
+    ADD(".linker-text-button.dismiss-button, .linker-text-button.text-button-error, .linker-text-button.text-button-warning { border-color: transparent; }\n");
+    ADD(".linker-text-button.dismiss-button:hover:not(:disabled) { background-color: alpha(%s, 0.12); background-image: none; }\n", p->primary);
+    ADD(".linker-text-button.text-button-error:hover:not(:disabled) { background-color: alpha(%s, 0.12); background-image: none; }\n", p->error);
+    ADD(".linker-text-button.text-button-warning:hover:not(:disabled) { background-color: alpha(#D08770, 0.12); background-image: none; }\n");
+    ADD(".linker-text-button.dismiss-button:active:not(:disabled), .linker-text-button.text-button-error:active:not(:disabled), .linker-text-button.text-button-warning:active:not(:disabled) { opacity: 0.75; }\n");
+    ADD(".text-button-warning, .text-button-warning:backdrop { color: #D08770; }\n");
+    ADD(".destructive-button, .destructive-button:backdrop { background-color: %s; background-image: none; color: %s; }\n", p->error, p->on_error);
+    ADD(".pill-button:disabled, entry:disabled, switch:disabled { opacity: 0.55; }\n");
     ADD(".linker-text-button:disabled { opacity: 0.4; }\n");
     ADD(".text-button-primary { color: %s; }\n", p->primary);
-    ADD(".text-button-neutral { color: %s; }\n", p->on_surface_variant);
+    ADD(".text-button-neutral { color: %s; }\n", p->primary);
     ADD(".text-button-error { color: %s; }\n", p->error);
     ADD(".text-button-primary:backdrop { color: %s; }\n", p->primary);
-    ADD(".text-button-neutral:backdrop { color: %s; }\n", p->on_surface_variant);
+    ADD(".text-button-neutral:backdrop { color: %s; }\n", p->primary);
     ADD(".text-button-error:backdrop { color: %s; }\n", p->error);
 
-    ADD(".icon-button { background-color: transparent; background-image: none; border: none; border-radius: 20px; "
-        "min-width: 40px; min-height: 40px; padding: 0; box-shadow: none; }\n");
-    ADD(".icon-button:hover { background-color: %s; background-image: none; }\n", p->surface_container_high);
-    ADD(".icon-button:active { background-color: %s; background-image: none; }\n", p->surface_container_highest);
+    ADD(".icon-button { background-color: transparent; background-image: none; border: none; border-radius: 12px; "
+        "min-width: 40px; min-height: 40px; padding: 0; box-shadow: none; transition: background-color 120ms ease; }\n");
+    ADD(".icon-button:hover { background-color: %s; background-image: none; }\n", p->surface_container_highest);
+    ADD(".icon-button:active { background-color: alpha(%s, 0.35); background-image: none; }\n", p->primary);
     ADD(".icon-button:disabled { opacity: 0.4; }\n");
-    ADD(".icon-button-small { border-radius: 12px; min-width: 24px; min-height: 24px; }\n");
+    ADD(".icon-button-small { border-radius: 8px; min-width: 32px; min-height: 32px; }\n");
     ADD(".icon-tint-primary { color: %s; }\n", p->primary);
     ADD(".icon-tint-error { color: %s; }\n", p->error);
     ADD(".icon-tint-primary:backdrop { color: %s; }\n", p->primary);
@@ -124,20 +129,25 @@ static gchar *generate_css(const NordPalette *p) {
     ADD(".day-header { background-color: %s; background-image: none; }\n", p->surface);
     ADD(".hairline { background-color: %s; min-height: 1px; }\n", p->outline_variant);
     ADD(".row-hover:hover { background-color: %s; background-image: none; }\n", p->surface_container);
-    ADD(".chooser-row { border-radius: 8px; }\n");
+    ADD(".chooser-row, .chooser-row:backdrop { background-color: %s; background-image: none; border: 2px solid transparent; box-shadow: none; border-radius: 12px; padding: 0; color: %s; outline: none; outline-width: 0; outline-style: none; outline-color: transparent; }\n", p->surface, p->on_surface);
     ADD(".chooser-row:hover { background-color: %s; background-image: none; }\n", p->row_hover);
-    ADD(".url-link { border-radius: 4px; }\n");
+    ADD(".chooser-row:focus { background-color: alpha(%s, 0.12); background-image: none; border-color: %s; outline: none; outline-width: 0; outline-style: none; outline-color: transparent; }\n", p->primary, p->primary);
+    ADD(".chooser-row:hover:focus { background-color: alpha(%s, 0.20); background-image: none; border-color: %s; }\n", p->primary, p->primary);
+    ADD(".chooser-row:active { background-color: alpha(%s, 0.30); background-image: none; border-color: %s; }\n", p->primary, p->primary);
+    ADD(".chooser-row *, .chooser-row *:focus { outline: none; outline-width: 0; outline-style: none; outline-color: transparent; }\n");
+    ADD(".url-link, .url-link:backdrop { background-color: transparent; background-image: none; border: none; box-shadow: none; border-radius: 4px; padding: 0; color: %s; }\n", p->primary);
 
-    ADD(".card { background-color: %s; background-image: none; border: 1px solid %s; border-radius: 20px; "
-        "box-shadow: 0 4px 24px 0 rgba(0,0,0,0.35); }\n", p->surface_container_high, p->outline_variant);
+    ADD(".card, .card:backdrop { background-color: %s; background-image: none; border: none; border-radius: 12px; box-shadow: none; }\n", p->surface);
 
-    ADD("entry.outlined, textview.outlined text { background-color: transparent; }\n");
-    ADD("entry.outlined { border: 1px solid %s; border-radius: 8px; padding: 10px 12px; caret-color: %s; box-shadow: none; }\n",
+    ADD("entry.outlined, textview.outlined, textview.outlined text { background-color: transparent; background-image: none; }\n");
+    ADD("entry.outlined { border: 1px solid %s; border-radius: 12px; padding: 8px 12px; caret-color: %s; box-shadow: none; }\n",
         p->outline, p->primary);
-    ADD("entry.outlined:focus { border-color: %s; border-width: 2px; }\n", p->primary);
-    ADD("textview.outlined { border: 1px solid %s; border-radius: 8px; caret-color: %s; }\n", p->outline, p->primary);
+    ADD("entry.outlined:focus { border-color: %s; }\n", p->primary);
+    ADD("scrolledwindow.outlined, scrolledwindow.outlined:backdrop { border: 1px solid %s; border-radius: 12px; background-color: transparent; background-image: none; }\n", p->outline);
+    ADD("scrolledwindow.outlined.focused { border-color: %s; }\n", p->primary);
+    ADD("textview.outlined { border: none; caret-color: %s; }\n", p->primary);
     ADD("textview.outlined text { padding: 10px 12px; }\n");
-    ADD("textview.outlined:focus-within { border-color: %s; border-width: 2px; }\n", p->primary);
+    ADD("textview.outlined:focus { border-color: %s; }\n", p->primary);
     ADD("entry.outlined selection, textview.outlined text selection { background-color: %s; }\n", p->primary_container);
 
     ADD("scrollbar { background-color: transparent; }\n");
@@ -156,6 +166,7 @@ static gchar *generate_css(const NordPalette *p) {
     /* gtk_container_set_border_width() is a no-op for GtkBox/GtkDialog content
      * layout on this GTK build — use real CSS padding for inner content inset. */
     ADD(".content-pad-16 { padding: 16px; }\n");
+    ADD(".content-pad-12 { padding: 12px; }\n");
     ADD(".content-pad-20 { padding: 20px; }\n");
 
 #undef ADD

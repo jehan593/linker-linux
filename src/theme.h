@@ -21,7 +21,7 @@ typedef struct {
 } NordPalette;
 
 /* Search-highlight colors (fixed, not theme-swapped). */
-#define LINKER_HIGHLIGHT_BG "#EBCB8B"
+#define LINKER_HIGHLIGHT_BG "#81A1C1"
 #define LINKER_HIGHLIGHT_FG "#2E3440"
 
 /* Call once at startup after gtk_init. */
