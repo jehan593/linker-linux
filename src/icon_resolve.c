@@ -23,7 +23,7 @@ GdkPixbuf *icon_resolve_placeholder(gint size) {
     cairo_arc(cr, cx, cy, r, 0, 2 * M_PI);
     cairo_set_source_rgba(cr, 0x4C / 255.0, 0x56 / 255.0, 0x6A / 255.0, 1.0); /* Nord3 */
     cairo_fill_preserve(cr);
-    cairo_set_source_rgba(cr, 0x88 / 255.0, 0xC0 / 255.0, 0xD0 / 255.0, 1.0); /* Nord8 */
+    cairo_set_source_rgba(cr, 0x81 / 255.0, 0xA1 / 255.0, 0xC1 / 255.0, 1.0); /* Nord9 */
     cairo_set_line_width(cr, size * 0.06);
     cairo_stroke(cr);
 

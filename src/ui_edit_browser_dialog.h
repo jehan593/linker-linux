@@ -7,7 +7,7 @@
 #include "app_context.h"
 #include "browsers.h"
 
-void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *toast_host,
+void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state,
                                  const BrowserListItem *item, GtkWidget *browsers_view);
 
 #endif

@@ -70,16 +70,14 @@ static GtkWidget *build_empty_state(void) {
     gtk_widget_set_margin_top(box, 24);
     gtk_widget_set_margin_bottom(box, 24);
 
-    GtkWidget *icon = gtk_image_new_from_icon_name("insert-link-symbolic", GTK_ICON_SIZE_DIALOG);
-    gtk_image_set_pixel_size(GTK_IMAGE(icon), 32);
     GtkWidget *label = ui_body_small_label_new(
-        "No saved links yet — use the bookmark icon to save one.");
+        "No saved links yet.\nSave a link from the browser chooser.");
+    g_object_set_data(G_OBJECT(box), "label", label);
     gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
     gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_CENTER);
     gtk_label_set_xalign(GTK_LABEL(label), 0.5);
     gtk_widget_set_size_request(label, 260, -1);
 
-    gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box), label, FALSE, FALSE, 0);
     return box;
 }
@@ -100,12 +98,11 @@ static void on_edit_clicked(GtkButton *btn, gpointer user_data) {
     (void) btn;
     GtkWidget *row = GTK_WIDGET(user_data);
     AppState *state = g_object_get_data(G_OBJECT(row), "state");
-    GtkWidget *toast_host = g_object_get_data(G_OBJECT(row), "toast-host");
     GtkWidget *view = g_object_get_data(G_OBJECT(row), "saved-links-view");
     gint64 *id_box = g_object_get_data(G_OBJECT(row), "link-id");
     const gchar *url = g_object_get_data(G_OBJECT(row), "link-url");
     GtkWidget *toplevel = gtk_widget_get_toplevel(row);
-    ui_edit_saved_link_dialog_run(GTK_WINDOW(toplevel), state, toast_host, *id_box, url, view);
+    ui_edit_saved_link_dialog_run(GTK_WINDOW(toplevel), state, *id_box, url, view);
 }
 
 static void on_copy_clicked(GtkButton *btn, gpointer user_data) {
@@ -127,33 +124,24 @@ static void open_link_from_row(GtkWidget *row) {
     }
 }
 
-static void set_url_label_underline(GtkWidget *label, gboolean hovered) {
-    PangoAttrList *attrs = pango_attr_list_new();
-    pango_attr_list_insert(attrs, pango_attr_underline_new(hovered ? PANGO_UNDERLINE_SINGLE : PANGO_UNDERLINE_NONE));
-    gtk_label_set_attributes(GTK_LABEL(label), attrs);
-    pango_attr_list_unref(attrs);
-}
-
-static gboolean on_url_label_release(GtkWidget *event_box, GdkEventButton *event, gpointer user_data) {
-    (void) event_box;
-    (void) event;
+static void on_url_clicked(GtkButton *button, gpointer user_data) {
+    (void) button;
     open_link_from_row(GTK_WIDGET(user_data));
-    return TRUE;
 }
 
-static gboolean on_url_label_enter(GtkWidget *event_box, GdkEventCrossing *event, gpointer user_data) {
+static gboolean on_url_enter(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
     (void) event;
-    set_url_label_underline(GTK_WIDGET(user_data), TRUE);
-    GdkCursor *cursor = gdk_cursor_new_for_display(gtk_widget_get_display(event_box), GDK_HAND2);
-    gdk_window_set_cursor(gtk_widget_get_window(event_box), cursor);
+    (void) user_data;
+    GdkCursor *cursor = gdk_cursor_new_for_display(gtk_widget_get_display(widget), GDK_HAND2);
+    gdk_window_set_cursor(gtk_widget_get_window(widget), cursor);
     if (cursor) g_object_unref(cursor);
     return FALSE;
 }
 
-static gboolean on_url_label_leave(GtkWidget *event_box, GdkEventCrossing *event, gpointer user_data) {
+static gboolean on_url_leave(GtkWidget *widget, GdkEventCrossing *event, gpointer user_data) {
     (void) event;
-    set_url_label_underline(GTK_WIDGET(user_data), FALSE);
-    gdk_window_set_cursor(gtk_widget_get_window(event_box), NULL);
+    (void) user_data;
+    gdk_window_set_cursor(gtk_widget_get_window(widget), NULL);
     return FALSE;
 }
 
@@ -164,6 +152,9 @@ static void on_delete_clicked(GtkButton *btn, gpointer user_data) {
     GtkWidget *toast_host = g_object_get_data(G_OBJECT(row), "toast-host");
     GtkWidget *view = g_object_get_data(G_OBJECT(row), "saved-links-view");
     gint64 *id_box = g_object_get_data(G_OBJECT(row), "link-id");
+
+    if (!ui_confirm_delete(GTK_WINDOW(gtk_widget_get_toplevel(row)), "Delete link?",
+                           "This permanently removes the link from your saved links.")) return;
 
     for (guint i = 0; i < state->data->saved_links->len; i++) {
         SavedLinkEntity *e = g_ptr_array_index(state->data->saved_links, i);
@@ -179,25 +170,29 @@ static void on_delete_clicked(GtkButton *btn, gpointer user_data) {
 static GtkWidget *build_link_row(AppState *state, GtkWidget *toast_host, GtkWidget *view,
                                   const SavedLinkEntity *entity, const gchar *query) {
     GtkWidget *row = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-    gtk_style_context_add_class(gtk_widget_get_style_context(row), "row-hairline");
-    gtk_style_context_add_class(gtk_widget_get_style_context(row), "row-hover");
+    gtk_style_context_add_class(gtk_widget_get_style_context(row), "card");
+    gtk_style_context_add_class(gtk_widget_get_style_context(row), "content-pad-12");
     gtk_widget_set_margin_start(row, 16);
-    gtk_widget_set_margin_end(row, 20);
-    gtk_widget_set_margin_top(row, 10);
-    gtk_widget_set_margin_bottom(row, 10);
+    gtk_widget_set_margin_end(row, 16);
+    gtk_widget_set_margin_top(row, 12);
+    gtk_widget_set_margin_bottom(row, 0);
 
     gchar *markup = build_highlighted_markup(entity->url, query);
     GtkWidget *url_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(url_label), markup);
     g_free(markup);
     gtk_label_set_line_wrap(GTK_LABEL(url_label), TRUE);
+    gtk_label_set_line_wrap_mode(GTK_LABEL(url_label), PANGO_WRAP_WORD_CHAR);
+    gtk_label_set_max_width_chars(GTK_LABEL(url_label), 1);
     gtk_label_set_xalign(GTK_LABEL(url_label), 0.0);
     gtk_style_context_add_class(gtk_widget_get_style_context(url_label), "linker-url-text");
 
-    /* Clicking the URL (not a button) opens it in the default browser */
-    GtkWidget *url_event = gtk_event_box_new();
-    gtk_style_context_add_class(gtk_widget_get_style_context(url_event), "url-link");
+    GtkWidget *url_event = gtk_button_new();
+    gtk_widget_set_can_focus(url_event, FALSE);
     gtk_widget_add_events(url_event, GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+    gtk_style_context_add_class(gtk_widget_get_style_context(url_event), "url-link");
+    gtk_widget_set_tooltip_text(url_event, entity->url);
+    atk_object_set_name(gtk_widget_get_accessible(url_event), entity->url);
     gtk_container_add(GTK_CONTAINER(url_event), url_label);
 
     gchar *time_str = linker_format_time_of_day(entity->saved_at_millis);
@@ -215,8 +210,10 @@ static GtkWidget *build_link_row(AppState *state, GtkWidget *toast_host, GtkWidg
     gtk_box_pack_start(GTK_BOX(action_row), delete_btn, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(row), url_event, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(row), time_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(row), action_row, FALSE, FALSE, 0);
+    GtkWidget *footer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    gtk_box_pack_start(GTK_BOX(footer), time_label, TRUE, TRUE, 0);
+    gtk_box_pack_end(GTK_BOX(footer), action_row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(row), footer, FALSE, FALSE, 0);
 
     gint64 *id_box = g_new(gint64, 1);
     *id_box = entity->id;
@@ -226,9 +223,9 @@ static GtkWidget *build_link_row(AppState *state, GtkWidget *toast_host, GtkWidg
     g_object_set_data(G_OBJECT(row), "toast-host", toast_host);
     g_object_set_data(G_OBJECT(row), "saved-links-view", view);
 
-    g_signal_connect(url_event, "button-release-event", G_CALLBACK(on_url_label_release), row);
-    g_signal_connect(url_event, "enter-notify-event", G_CALLBACK(on_url_label_enter), url_label);
-    g_signal_connect(url_event, "leave-notify-event", G_CALLBACK(on_url_label_leave), url_label);
+    g_signal_connect(url_event, "clicked", G_CALLBACK(on_url_clicked), row);
+    g_signal_connect(url_event, "enter-notify-event", G_CALLBACK(on_url_enter), NULL);
+    g_signal_connect(url_event, "leave-notify-event", G_CALLBACK(on_url_leave), NULL);
     g_signal_connect(edit_btn, "clicked", G_CALLBACK(on_edit_clicked), row);
     g_signal_connect(copy_btn, "clicked", G_CALLBACK(on_copy_clicked), row);
     g_signal_connect(delete_btn, "clicked", G_CALLBACK(on_delete_clicked), row);
@@ -275,6 +272,8 @@ void ui_saved_links_view_refresh(GtkWidget *view) {
     g_ptr_array_sort(filtered, compare_saved_desc);
 
     if (filtered->len == 0) {
+        gtk_label_set_text(GTK_LABEL(g_object_get_data(G_OBJECT(empty_state), "label")),
+            *query ? "No matching links." : "No saved links yet.\nSave a link from the browser chooser.");
         gtk_widget_show(empty_state);
         gtk_widget_hide(scroller);
     } else {
@@ -316,6 +315,7 @@ GtkWidget *ui_saved_links_view_new(AppState *state, GtkWidget *toast_host) {
     gtk_widget_set_margin_bottom(search_row, 8);
     GtkWidget *search_entry = gtk_search_entry_new();
     gtk_entry_set_placeholder_text(GTK_ENTRY(search_entry), "Search saved links");
+    atk_object_set_name(gtk_widget_get_accessible(search_entry), "Search saved links");
     gtk_style_context_add_class(gtk_widget_get_style_context(search_entry), "outlined");
     gtk_box_pack_start(GTK_BOX(search_row), search_entry, TRUE, TRUE, 0);
 

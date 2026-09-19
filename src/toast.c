@@ -7,8 +7,17 @@ static gboolean hide_cb(gpointer user_data) {
     return G_SOURCE_REMOVE;
 }
 
+/* Short-lived hosts (e.g. inside dialogs) are destroyed before the 2.2s hide
+ * timer fires; remove the pending timer so hide_cb never runs on a dead widget. */
+static void toast_host_destroyed(GtkWidget *host) {
+    guint existing = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(host), "linker-toast-timeout-id"));
+    if (existing) g_source_remove(existing);
+    g_object_set_data(G_OBJECT(host), "linker-toast-timeout-id", GUINT_TO_POINTER(0));
+}
+
 GtkWidget *toast_host_new(void) {
     GtkWidget *revealer = gtk_revealer_new();
+    g_signal_connect(revealer, "destroy", G_CALLBACK(toast_host_destroyed), NULL);
     gtk_revealer_set_transition_type(GTK_REVEALER(revealer), GTK_REVEALER_TRANSITION_TYPE_CROSSFADE);
     gtk_revealer_set_transition_duration(GTK_REVEALER(revealer), 180);
     gtk_widget_set_halign(revealer, GTK_ALIGN_CENTER);

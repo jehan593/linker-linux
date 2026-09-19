@@ -2,6 +2,7 @@
 #include "ui_edit_browser_dialog.h"
 #include "browsers.h"
 #include "icon_resolve.h"
+#include "toast.h"
 #include "ui_widgets.h"
 #include <string.h>
 
@@ -22,13 +23,10 @@ static GtkWidget *build_empty_state(void) {
     gtk_widget_set_margin_top(box, 24);
     gtk_widget_set_margin_bottom(box, 24);
 
-    GtkWidget *icon = gtk_image_new_from_icon_name("web-browser-symbolic", GTK_ICON_SIZE_DIALOG);
-    gtk_image_set_pixel_size(GTK_IMAGE(icon), 32);
     GtkWidget *label = ui_body_small_label_new("No browsers found on this device.");
     gtk_label_set_justify(GTK_LABEL(label), GTK_JUSTIFY_CENTER);
     gtk_label_set_xalign(GTK_LABEL(label), 0.5);
 
-    gtk_box_pack_start(GTK_BOX(box), icon, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box), label, FALSE, FALSE, 0);
     return box;
 }
@@ -106,7 +104,6 @@ static void on_edit_clicked(GtkButton *btn, gpointer user_data) {
     GtkWidget *row = GTK_WIDGET(user_data);
     AppState *state = g_object_get_data(G_OBJECT(row), "state");
     GtkWidget *browsers_view = g_object_get_data(G_OBJECT(row), "browsers-view");
-    GtkWidget *toast_host = g_object_get_data(G_OBJECT(row), "toast-host");
     const gchar *id = g_object_get_data(G_OBJECT(row), "browser-id");
 
     GPtrArray *list = browsers_get_manage_list(state->data, NULL);
@@ -120,7 +117,7 @@ static void on_edit_clicked(GtkButton *btn, gpointer user_data) {
     }
     if (found) {
         GtkWidget *toplevel = gtk_widget_get_toplevel(row);
-        ui_edit_browser_dialog_run(GTK_WINDOW(toplevel), state, toast_host, found, browsers_view);
+        ui_edit_browser_dialog_run(GTK_WINDOW(toplevel), state, found, browsers_view);
     }
     browsers_free_list(list);
 }
@@ -129,16 +126,17 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
                                      const BrowserListItem *item, guint index, guint total, gboolean show_move) {
     GtkWidget *row_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_margin_start(row_box, 16);
-    gtk_widget_set_margin_end(row_box, 20);
-    gtk_widget_set_margin_top(row_box, 10);
-    gtk_widget_set_margin_bottom(row_box, 10);
-    gtk_style_context_add_class(gtk_widget_get_style_context(row_box), "row-hairline");
+    gtk_widget_set_margin_end(row_box, 16);
+    gtk_widget_set_margin_bottom(row_box, 12);
+    gtk_style_context_add_class(gtk_widget_get_style_context(row_box), "card");
+    gtk_style_context_add_class(gtk_widget_get_style_context(row_box), "content-pad-12");
 
     GtkWidget *move_box = NULL;
     GtkWidget *up_btn = NULL;
     GtkWidget *down_btn = NULL;
     if (show_move) {
-        move_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        move_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+        gtk_widget_set_valign(move_box, GTK_ALIGN_CENTER);
         up_btn = ui_icon_button_new("go-up-symbolic", "Move up", TRUE);
         down_btn = ui_icon_button_new("go-down-symbolic", "Move down", TRUE);
         gtk_widget_set_sensitive(up_btn, index > 0);
@@ -157,6 +155,8 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
     GtkWidget *display_label = gtk_label_new(NULL);
     gtk_label_set_xalign(GTK_LABEL(display_label), 0.0);
     gtk_label_set_text(GTK_LABEL(display_label), item->display_label);
+    gtk_label_set_ellipsize(GTK_LABEL(display_label), PANGO_ELLIPSIZE_END);
+    gtk_widget_set_tooltip_text(display_label, item->display_label);
     gtk_box_pack_start(GTK_BOX(label_box), display_label, FALSE, FALSE, 0);
     if (item->system_label && *item->system_label && g_strcmp0(item->display_label, item->system_label) != 0) {
         gtk_box_pack_start(GTK_BOX(label_box), ui_body_small_label_new(item->system_label), FALSE, FALSE, 0);
@@ -165,9 +165,12 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
     GtkWidget *edit_btn = ui_icon_button_new("document-edit-symbolic", "Edit browser", FALSE);
 
     GtkWidget *switch_widget = gtk_switch_new();
+    gtk_widget_set_can_focus(switch_widget, FALSE);
     gtk_switch_set_active(GTK_SWITCH(switch_widget), !item->hidden);
     gtk_switch_set_state(GTK_SWITCH(switch_widget), !item->hidden);
     gtk_widget_set_valign(switch_widget, GTK_ALIGN_CENTER);
+    gtk_widget_set_tooltip_text(switch_widget, "Show in chooser");
+    atk_object_set_name(gtk_widget_get_accessible(switch_widget), "Show in chooser");
 
     gtk_box_pack_start(GTK_BOX(row_box), icon_img, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(row_box), label_box, TRUE, TRUE, 0);
@@ -176,6 +179,9 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
     gtk_box_pack_start(GTK_BOX(row_box), switch_widget, FALSE, FALSE, 0);
 
     GtkWidget *row = gtk_list_box_row_new();
+    gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), FALSE);
+    gtk_list_box_row_set_selectable(GTK_LIST_BOX_ROW(row), FALSE);
+    gtk_widget_set_can_focus(row, FALSE);
     gtk_container_add(GTK_CONTAINER(row), row_box);
 
     g_object_set_data_full(G_OBJECT(row), "browser-id", g_strdup(item->id), g_free);
@@ -193,13 +199,13 @@ static GtkWidget *build_browser_row(AppState *state, GtkWidget *toast_host, GtkW
 
 static GtkWidget *build_disabled_header(void) {
     GtkWidget *row = gtk_list_box_row_new();
+    gtk_widget_set_can_focus(row, FALSE);
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_style_context_add_class(gtk_widget_get_style_context(box), "day-header");
     GtkWidget *label = ui_label_label_new("Disabled");
     gtk_widget_set_margin_start(label, 16);
     gtk_widget_set_margin_end(label, 16);
-    gtk_widget_set_margin_top(label, 6);
-    gtk_widget_set_margin_bottom(label, 6);
+    gtk_widget_set_margin_top(label, 8);
+    gtk_widget_set_margin_bottom(label, 12);
     gtk_box_pack_start(GTK_BOX(box), label, FALSE, FALSE, 0);
     gtk_container_add(GTK_CONTAINER(row), box);
     return row;
@@ -259,14 +265,16 @@ static void on_add_clicked(GtkButton *btn, gpointer user_data) {
     (void) btn;
     GtkWidget *view = GTK_WIDGET(user_data);
     AppState *state = g_object_get_data(G_OBJECT(view), "state");
-    GtkWidget *toast_host = g_object_get_data(G_OBJECT(view), "toast-host");
     GtkWidget *toplevel = gtk_widget_get_toplevel(view);
-    ui_edit_browser_dialog_run(GTK_WINDOW(toplevel), state, toast_host, NULL, view);
+    ui_edit_browser_dialog_run(GTK_WINDOW(toplevel), state, NULL, view);
 }
 
 static void on_refresh_clicked(GtkButton *btn, gpointer user_data) {
     (void) btn;
-    ui_browsers_view_refresh(GTK_WIDGET(user_data));
+    GtkWidget *view = GTK_WIDGET(user_data);
+    ui_browsers_view_refresh(view);
+    GtkWidget *toast_host = g_object_get_data(G_OBJECT(view), "toast-host");
+    toast_host_show(toast_host, "Refreshed browser list");
 }
 
 GtkWidget *ui_browsers_view_new(AppState *state, GtkWidget *toast_host) {
@@ -292,6 +300,7 @@ GtkWidget *ui_browsers_view_new(AppState *state, GtkWidget *toast_host) {
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     GtkWidget *list_box = gtk_list_box_new();
     gtk_list_box_set_selection_mode(GTK_LIST_BOX(list_box), GTK_SELECTION_NONE);
+    gtk_widget_set_can_focus(list_box, FALSE);
     gtk_container_add(GTK_CONTAINER(scroller), list_box);
 
     gtk_box_pack_start(GTK_BOX(root), header, FALSE, FALSE, 0);

@@ -1,4 +1,4 @@
-/* Regenerates data/icons/linker-*.png: two interlocking rings (Nord8 on Nord0),
+/* Regenerates data/icons/linker-*.png: two interlocking rings (Nord9 on Nord0),
  * an approximation of the original Android ic_launcher_foreground mark (that vector
  * source isn't available in this environment). Re-run if the palette or motif changes;
  * don't hand-edit the PNGs directly. Usage: ./generate_icon <out_dir>
@@ -14,9 +14,9 @@
 #define NORD0_G 0x34 / 255.0
 #define NORD0_B 0x40 / 255.0
 
-#define NORD8_R 0x88 / 255.0
-#define NORD8_G 0xC0 / 255.0
-#define NORD8_B 0xD0 / 255.0
+#define NORD9_R 0x81 / 255.0
+#define NORD9_G 0xA1 / 255.0
+#define NORD9_B 0xC1 / 255.0
 
 static void draw_icon(cairo_t *cr, double size) {
     double corner = size * 0.22;
@@ -31,7 +31,7 @@ static void draw_icon(cairo_t *cr, double size) {
     cairo_set_source_rgb(cr, NORD0_R, NORD0_G, NORD0_B);
     cairo_fill(cr);
 
-    /* Foreground: two interlocking rings, Nord8 */
+    /* Foreground: two interlocking rings, Nord9 */
     double ring_r = size * 0.165;
     double stroke_w = size * 0.075;
     double offset = ring_r * 0.85;
@@ -39,7 +39,7 @@ static void draw_icon(cairo_t *cr, double size) {
     double cx1 = size * 0.5 - offset;
     double cx2 = size * 0.5 + offset;
 
-    cairo_set_source_rgb(cr, NORD8_R, NORD8_G, NORD8_B);
+    cairo_set_source_rgb(cr, NORD9_R, NORD9_G, NORD9_B);
     cairo_set_line_width(cr, stroke_w);
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 

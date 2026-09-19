@@ -105,7 +105,7 @@ static void response_trampoline_left(GtkButton *btn, gpointer dialog) {
     gtk_dialog_response(GTK_DIALOG(dialog), RESPONSE_LEFT);
 }
 
-void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *toast_host,
+void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state,
                                  const BrowserListItem *item, GtkWidget *browsers_view) {
     gboolean is_add = (item == NULL);
     gboolean is_custom_edit = item && item->is_custom;
@@ -119,7 +119,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-    gtk_style_context_add_class(gtk_widget_get_style_context(content), "content-pad-20");
+    gtk_style_context_add_class(gtk_widget_get_style_context(content), "content-pad-16");
 
     GtkWidget *title_label = ui_title_label_new(is_add ? "Add browser" : "Edit browser");
     gtk_widget_set_margin_bottom(title_label, 16);
@@ -153,14 +153,17 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
 
     gtk_box_pack_start(GTK_BOX(form), ui_label_label_new("Display name"), FALSE, FALSE, 0);
     GtkWidget *name_entry = ui_outlined_entry_new();
+    atk_object_set_name(gtk_widget_get_accessible(name_entry), "Display name");
     gtk_box_pack_start(GTK_BOX(form), name_entry, FALSE, FALSE, 0);
 
     GtkWidget *target_scroll, *target_view;
     gtk_box_pack_start(GTK_BOX(form), ui_label_label_new("Target"), FALSE, FALSE, 0);
     target_scroll = ui_outlined_textview_new(&target_view);
+    atk_object_set_name(gtk_widget_get_accessible(target_view), "Target");
     gtk_widget_set_hexpand(target_scroll, TRUE);
     gtk_widget_set_size_request(target_scroll, -1, 84);
-    gtk_box_pack_start(GTK_BOX(form), target_scroll, TRUE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(form), target_scroll, FALSE, FALSE, 0);
+    ui_bind_enter(target_view, dialog, GTK_RESPONSE_OK);
     GtkWidget *browse_btn = ui_text_button_new("Browse…", "text-button-neutral");
     gtk_widget_set_halign(browse_btn, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(form), browse_btn, FALSE, FALSE, 0);
@@ -168,8 +171,10 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
     GtkWidget *args_scroll, *args_view;
     gtk_box_pack_start(GTK_BOX(form), ui_label_label_new("Additional parameters"), FALSE, FALSE, 0);
     args_scroll = ui_outlined_textview_new(&args_view);
+    atk_object_set_name(gtk_widget_get_accessible(args_view), "Additional parameters");
     gtk_widget_set_size_request(args_scroll, -1, 84);
     gtk_box_pack_start(GTK_BOX(form), args_scroll, FALSE, FALSE, 0);
+    ui_bind_enter(args_view, dialog, GTK_RESPONSE_OK);
     GtkWidget *args_hint = ui_body_small_label_new(
         "Space-separated, added before the link — e.g. --private-window --new-window. "
         "Quote arguments that contain spaces.");
@@ -179,17 +184,17 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
 
     gtk_box_pack_start(GTK_BOX(content), scroller, TRUE, TRUE, 0);
 
-    GtkWidget *button_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_widget_set_margin_top(button_row, 20);
+    GtkWidget *button_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    gtk_widget_set_margin_top(button_row, 16);
     GtkWidget *left_btn = NULL;
     if (!is_add) {
         left_btn = is_custom_edit ? ui_text_button_new("Delete", "text-button-error")
-                                   : ui_text_button_new("Reset to defaults", "text-button-error");
+                                   : ui_text_button_new("Reset to defaults", "text-button-warning");
     }
     GtkWidget *spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_widget_set_hexpand(spacer, TRUE);
     GtkWidget *cancel_btn = ui_text_button_new("Cancel", "text-button-neutral");
-    GtkWidget *save_btn = ui_text_button_new(is_add ? "Add" : "Save", "text-button-primary");
+    GtkWidget *save_btn = ui_pill_button_new(is_add ? "Add" : "Save");
 
     if (left_btn) gtk_box_pack_start(GTK_BOX(button_row), left_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(button_row), spacer, TRUE, TRUE, 0);
@@ -197,13 +202,20 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
     gtk_box_pack_start(GTK_BOX(button_row), save_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(content), button_row, FALSE, FALSE, 0);
 
+    /* Toasts from inside this dialog are shown here — the parent window is
+     * hidden behind the modal, so its toast host can't be seen. */
+    GtkWidget *dialog_toast_host = toast_host_new();
+    gtk_widget_set_size_request(dialog_toast_host, -1, 34);
+    gtk_box_pack_start(GTK_BOX(content), dialog_toast_host, FALSE, FALSE, 0);
+    g_object_set_data(G_OBJECT(dialog), "toast-host", dialog_toast_host);
+
     /* prefill */
     gtk_entry_set_text(GTK_ENTRY(name_entry), item ? item->display_label : "");
     ui_textview_set_text(GTK_TEXT_VIEW(target_view), item ? browser_list_item_effective_cmdline(item) : "");
     ui_textview_set_text(GTK_TEXT_VIEW(args_view), (item && item->extra_arguments) ? item->extra_arguments : "");
     gtk_entry_set_activates_default(GTK_ENTRY(name_entry), TRUE);
     gtk_widget_set_can_default(save_btn, TRUE);
-    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
+    gtk_window_set_default(GTK_WINDOW(dialog), save_btn);
 
     IconPickerCtx ctx = {
         .parent = GTK_WINDOW(dialog),
@@ -211,7 +223,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
         .icon_hint = icon_hint,
         .custom_icon_path = (item && item->custom_icon_path && *item->custom_icon_path) ? g_strdup(item->custom_icon_path) : NULL,
         .fallback_icon_field = g_strdup(item ? item->system_icon : ""),
-        .toast_host = toast_host,
+        .toast_host = dialog_toast_host,
     };
     refresh_icon_preview(&ctx);
 
@@ -229,16 +241,19 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
     gint response;
     for (;;) {
         response = gtk_dialog_run(GTK_DIALOG(dialog));
+        if (response == RESPONSE_LEFT && is_custom_edit &&
+            !ui_confirm_delete(GTK_WINDOW(dialog), "Delete browser?",
+                               "This removes this browser's custom settings from Linker.")) continue;
         if (response != GTK_RESPONSE_OK || !validate) break;
 
         gchar *exec_trim = g_strstrip(ui_textview_get_text(GTK_TEXT_VIEW(target_view)));
         gchar *name_trim = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(name_entry))));
         gboolean ok = TRUE;
         if (!*exec_trim) {
-            toast_host_show(toast_host, "Choose an executable first");
+            toast_host_show(dialog_toast_host, "Choose an executable first");
             ok = FALSE;
         } else if (!*name_trim) {
-            toast_host_show(toast_host, "Give it a name first");
+            toast_host_show(dialog_toast_host, "Give it a name first");
             ok = FALSE;
         }
         g_free(exec_trim);
@@ -295,7 +310,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
             g_free(pref->extra_arguments);
             pref->extra_arguments = *args_trim ? g_strdup(args_trim) : NULL;
         }
-        app_state_save(state, toast_host);
+        app_state_save(state, dialog_toast_host);
 
         g_free(name_trim);
         g_free(exec_trim);
@@ -322,7 +337,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state, GtkWidget *t
                 pref->extra_arguments = NULL;
             }
         }
-        app_state_save(state, toast_host);
+        app_state_save(state, dialog_toast_host);
     }
 
     g_free(ctx.custom_icon_path);
