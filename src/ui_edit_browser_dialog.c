@@ -125,11 +125,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state,
     gtk_widget_set_margin_bottom(title_label, 16);
     gtk_box_pack_start(GTK_BOX(content), title_label, FALSE, FALSE, 0);
 
-    GtkWidget *scroller = gtk_scrolled_window_new(NULL, NULL);
-    gtk_widget_set_vexpand(scroller, TRUE);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
     GtkWidget *form = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
-    gtk_container_add(GTK_CONTAINER(scroller), form);
 
     GtkWidget *icon_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
     gtk_widget_set_margin_bottom(icon_row, 8);
@@ -182,7 +178,7 @@ void ui_edit_browser_dialog_run(GtkWindow *parent, AppState *state,
     gtk_label_set_max_width_chars(GTK_LABEL(args_hint), 56);
     gtk_box_pack_start(GTK_BOX(form), args_hint, FALSE, FALSE, 0);
 
-    gtk_box_pack_start(GTK_BOX(content), scroller, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(content), form, FALSE, FALSE, 0);
 
     GtkWidget *button_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_margin_top(button_row, 16);
