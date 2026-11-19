@@ -4,12 +4,12 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A browser chooser for Linux (C + GTK3). When you click a link, Linker pops up and lets
-you pick which browser opens it — work vs. personal, Brave vs. Firefox, and so on.
+you pick which browser opens it ΓÇö work vs. personal, Brave vs. Firefox, and so on.
 
-No background process — every launch is a fresh, short-lived app. Installs per-user,
+No background process ΓÇö every launch is a fresh, short-lived app. Installs per-user,
 no root needed. Saved links and settings live under `$XDG_DATA_HOME/linker`.
 
-> **FYI: This project is fully vibe coded.**
+> **FYI:** This project is fully vibe coded for my personal use and taste. It's shared publicly in case it's useful to you. Feel free to fork it and adapt it to your needs.
 
 ## Install
 
